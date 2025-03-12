@@ -1,0 +1,3 @@
+Pt API (deepseek R1 free): https://openrouter.ai (free key si exemple de folosire)
+Gestiune api: https://openrouter.ai/activity
+UI : https://app.uizard.io/prototypes/LOp6x6JldxhjxZY1xMAJ

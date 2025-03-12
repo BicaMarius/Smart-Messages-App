@@ -1,0 +1,7 @@
+Ce am facut?
+- Server Express: am creat un server Express care rulează pe portul 3000 și expune o rută POST la /api/summarize
+- Procesarea Cererilor: app primește un array de mesaje, le combină într-un prompt și apelează API-ul Openrouter (folosind modelul Deepseek) pentru a genera un sumar
+- Securitate: Am implementat middleware-uri pentru criptare și decriptare a datelor, astfel încât informațiile sensibile să fie protejate
+- Gestionarea Erorilor: Am adăugat un middleware global care captează și raportează erorile pentru depanare
+
+Ce mai trb sa fac?
