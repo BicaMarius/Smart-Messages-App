@@ -1,7 +1,42 @@
 Ce am facut?
+ BACKEND:
 - Server Express: am creat un server Express care rulează pe portul 3000 și expune o rută POST la /api/summarize
 - Procesarea Cererilor: app primește un array de mesaje, le combină într-un prompt și apelează API-ul Openrouter (folosind modelul Deepseek) pentru a genera un sumar
 - Securitate: Am implementat middleware-uri pentru criptare și decriptare a datelor, astfel încât informațiile sensibile să fie protejate
 - Gestionarea Erorilor: Am adăugat un middleware global care captează și raportează erorile pentru depanare
 
+ FRONTEND:
+- AppBar personalizat cu titlu centrat și iconițe la stânga/dreapta
+- Carduri responsive pentru modulele principale (Unread Messages, Advanced Summary, Detected Events)
+- Zona „Ask me anything” cu input de la tastatura si hint + buton send
+- Bottom Navigation Bar
+- Compatibilitate pt orice dispozitiv (folosind SingleChildScrollView pt overflow si Expanded și Flexible pentru a ajusta dimensiunile elementelor dinamice)
+
+
 Ce mai trb sa fac?
+ BACKEND:
+ - momentan folosim direct DeepSeek fara instructiuni prea clare, deci vom rafina modelul
+ - fine tuning si antrenarea modelului folosit pt a genera sumarizari cat mai bune si eficiente
+ - testarea modelului pe date concrete si imbunatatiri
+ - nlp pt categorisirea importantei mesajelor si antrenare
+ - nlp pt categorisirea persoanelor imlplicate in conversatie si securizare numelor si datelor confidentiale
+ - asistentul inteligent pt intrebarile in legatura cu mesajele sumarizate
+ - detectarea informatiilor de tip eveniment si listarea lor
+ - detectarea starilor persoanelor implicate in conversatie dintr o serie de categorii (optional)
+
+ FRONTEND:
+- finisare UI si imbunatatiri
+- schimbarea panelului de la instagram catre messenger sau whatsApp prin sageti sau swipe stanga/dreapta
+- statistica pt mesaje
+- conectarea cu backend-ul:
+- functia de unread Messages (citeste mesajele necitite si afiseaza in timp real o lista cu rezumatele)
+- fisarea importantei mesajului si detalii avansate
+- functionalitatea butonului calendar => popUp cu selectarea si validarea mesajelor din acea data, apoi afisare sumarizarii in modul
+- functionalitatea butonului send => trimite catre asistentul AI mesajul si deschide o conv cu acesta despre mesajele sumarizate
+- functionalitaea modului detected events => afisarea corespunzatoare a listei de evenimente (fie in timp real pt mesajele necitite fie pt mesaje mai vechi de la advanced summary)
+- functionalitatea butonului add events => adauga in calendarul telefonului/ cloud
+- buton add events apasat din nou => eliminarea evenimentului adaugat anterior
+- swipe right pt stergere/ dismiss event
+- functionalitatea butoanelor din Bottom Navigation Bar ( marcaje, home si setari)
+
+
