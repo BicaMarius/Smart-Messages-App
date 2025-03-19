@@ -4,6 +4,8 @@ Ce am facut?
 - Procesarea Cererilor: app primește un array de mesaje, le combină într-un prompt și apelează API-ul Openrouter (folosind modelul Deepseek) pentru a genera un sumar
 - Securitate: Am implementat middleware-uri pentru criptare și decriptare a datelor, astfel încât informațiile sensibile să fie protejate
 - Gestionarea Erorilor: Am adăugat un middleware global care captează și raportează erorile pentru depanare
+- Detectarea informatiilor de tip eveniment si listarea lor
+- Am inlocuit modelul DeepSeek R1 cu DS R1 distill Qwens 32B si am obtinut rezultate mai bune si mai rapide de sumarizare
 
  FRONTEND:
 - AppBar personalizat cu titlu centrat și iconițe la stânga/dreapta
@@ -11,7 +13,7 @@ Ce am facut?
 - Zona „Ask me anything” cu input de la tastatura si hint + buton send
 - Bottom Navigation Bar
 - Compatibilitate pt orice dispozitiv (folosind SingleChildScrollView pt overflow si Expanded și Flexible pentru a ajusta dimensiunile elementelor dinamice)
-
+- Prototip pt functia de unread messages si detected events (am trimis un mesaj predefinit de model de conversatie si am pus rezumatul lui in unread messages si evenimentul aferent detectat)
 
 Ce mai trb sa fac?
  BACKEND:
@@ -21,14 +23,12 @@ Ce mai trb sa fac?
  - nlp pt categorisirea importantei mesajelor si antrenare
  - nlp pt categorisirea persoanelor imlplicate in conversatie si securizare numelor si datelor confidentiale
  - asistentul inteligent pt intrebarile in legatura cu mesajele sumarizate
- - detectarea informatiilor de tip eveniment si listarea lor
  - detectarea starilor persoanelor implicate in conversatie dintr o serie de categorii (optional)
 
  FRONTEND:
 - finisare UI si imbunatatiri
 - schimbarea panelului de la instagram catre messenger sau whatsApp prin sageti sau swipe stanga/dreapta
 - statistica pt mesaje
-- conectarea cu backend-ul:
 - functia de unread Messages (citeste mesajele necitite si afiseaza in timp real o lista cu rezumatele)
 - fisarea importantei mesajului si detalii avansate
 - functionalitatea butonului calendar => popUp cu selectarea si validarea mesajelor din acea data, apoi afisare sumarizarii in modul
@@ -39,4 +39,11 @@ Ce mai trb sa fac?
 - swipe right pt stergere/ dismiss event
 - functionalitatea butoanelor din Bottom Navigation Bar ( marcaje, home si setari)
 
+ Bug-uri/ Imbunatatiri:
+ - daca conectez la tel si dau run pe device se instaleaza app dar nu porneste, ci da timeout, totusi daca o deschid dupa din telefon merge
+ - pe virtual device nu merge detect events, probabil ca nu are nici un calendar asignat
+ - trebuie sa verific daca merge si pe ios
+ - header ul nu incape si apare cu "...", va trb sa fac fontul mai mic sau sa trec pe urmatorul rand automat
+ - trb sa elimin campul time din detected events reprezentand doar ora locala, nefolositor, am nevoie de ora meetingului
+ - cred ca ar fi mai util sa las doar un buton simplu in forma de cerc pt add to calendar, fara hintul aferent
 

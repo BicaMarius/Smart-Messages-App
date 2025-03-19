@@ -45,5 +45,9 @@
 	<true/>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
+	<key>NSCalendarsUsageDescription</key>
+	<string>This app needs access to calendar to add events from message detection</string>
+	<key>NSContactsUsageDescription</key>
+	<string>This app needs access to contacts for calendar events</string>
 </dict>
 </plist>

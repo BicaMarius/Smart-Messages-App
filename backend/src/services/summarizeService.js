@@ -11,7 +11,7 @@ exports.summarizeMessages = async (messages) => {
         "Content-Type": "application/json"
       },
       body: JSON.stringify({
-        model: "deepseek/deepseek-r1:free",
+        model: "deepseek/deepseek-r1-distill-qwen-32b:free",
         messages: [
           {
             role: "user",

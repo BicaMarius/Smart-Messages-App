@@ -30,6 +30,9 @@ environment:
 dependencies:
   google_fonts: ^6.2.1
   font_awesome_flutter: ^10.7.0
+  http: ^1.1.0
+  device_calendar: ^4.3.2
+  timezone: ^0.9.4
   flutter:
     sdk: flutter
 
