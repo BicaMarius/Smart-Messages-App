@@ -12,6 +12,7 @@ Ce am facut?
 - Carduri responsive pentru modulele principale (Unread Messages, Advanced Summary, Detected Events)
 - Zona „Ask me anything” cu input de la tastatura si hint + buton send
 - Bottom Navigation Bar
+- Schimbarea panelului de la instagram catre messenger sau whatsApp prin sageti sau swipe stanga/dreapta
 - Compatibilitate pt orice dispozitiv (folosind SingleChildScrollView pt overflow si Expanded și Flexible pentru a ajusta dimensiunile elementelor dinamice)
 - Prototip pt functia de unread messages si detected events (am trimis un mesaj predefinit de model de conversatie si am pus rezumatul lui in unread messages si evenimentul aferent detectat)
 
@@ -27,7 +28,6 @@ Ce mai trb sa fac?
 
  FRONTEND:
 - finisare UI si imbunatatiri
-- schimbarea panelului de la instagram catre messenger sau whatsApp prin sageti sau swipe stanga/dreapta
 - statistica pt mesaje
 - functia de unread Messages (citeste mesajele necitite si afiseaza in timp real o lista cu rezumatele)
 - fisarea importantei mesajului si detalii avansate
@@ -43,6 +43,8 @@ Ce mai trb sa fac?
  - daca conectez la tel si dau run pe device se instaleaza app dar nu porneste, ci da timeout, totusi daca o deschid dupa din telefon merge
  - pe virtual device nu merge detect events, probabil ca nu are nici un calendar asignat
  - trebuie sa verific daca merge si pe ios
+
+ Rezolvate:
  - header ul nu incape si apare cu "...", va trb sa fac fontul mai mic sau sa trec pe urmatorul rand automat
  - trb sa elimin campul time din detected events reprezentand doar ora locala, nefolositor, am nevoie de ora meetingului
  - cred ca ar fi mai util sa las doar un buton simplu in forma de cerc pt add to calendar, fara hintul aferent

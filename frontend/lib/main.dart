@@ -20,6 +20,18 @@ class MyApp extends StatelessWidget {
   }
 }
 
+class SocialMediaPlatform {
+  final String name;
+  final IconData icon;
+  final Color iconColor;
+  
+  SocialMediaPlatform({
+    required this.name,
+    required this.icon,
+    required this.iconColor,
+  });
+}
+
 class HomePage extends StatefulWidget {
   @override
   _HomePageState createState() => _HomePageState();
@@ -30,14 +42,44 @@ class _HomePageState extends State<HomePage> {
   final MessageProcessor _messageProcessor = MessageProcessor();
   final CalendarService _calendarService = CalendarService();
   
+  final PageController _pageController = PageController(initialPage: 0);
+  int _currentPageIndex = 0;
+  
+  // Define social media platforms
+  final List<SocialMediaPlatform> _platforms = [
+    SocialMediaPlatform(
+      name: 'Instagram',
+      icon: FontAwesomeIcons.instagram,
+      iconColor: Colors.pinkAccent,
+    ),
+    SocialMediaPlatform(
+      name: 'WhatsApp',
+      icon: FontAwesomeIcons.whatsapp,
+      iconColor: Colors.green,
+    ),
+    SocialMediaPlatform(
+      name: 'Messenger',
+      icon: FontAwesomeIcons.facebookMessenger,
+      iconColor: Colors.blue,
+    ),
+  ];
+  
   List<MessageSummary> _unreadSummaries = [];
   List<EventDetails> _detectedEvents = [];
+  // Track which events have been added to calendar
+  Map<int, bool> _eventAddedToCalendar = {};
   bool _isLoading = false;
 
   @override
   void initState() {
     super.initState();
     _initializeApp();
+  }
+
+  @override
+  void dispose() {
+    _pageController.dispose();
+    super.dispose();
   }
 
   Future<void> _initializeApp() async {
@@ -54,48 +96,57 @@ class _HomePageState extends State<HomePage> {
     });
 
     try {
-      // Example messages from the problem statement
-      final messages = [
-        "Salut, când ne întâlnim?",
-        "Propun să ne vedem la ora 18:00.",
-        "Confirm, ne vedem la cafenea.",
-        "Esti sigur?",
-        "Da"
-      ];
-      
-      final response = await _apiService.summarizeMessages(messages);
-      final summary = response['summary'] ?? 'No summary available';
-      
-      // Process the summary to create a MessageSummary object
-      final messageSummary = MessageSummary(summary: summary);
-      
-      // Check if it contains an event
-      final eventDetails = _messageProcessor.detectEvent(summary);
-      
-      setState(() {
-        _unreadSummaries = [messageSummary];
-        
-        if (eventDetails != null) {
-          _detectedEvents = [eventDetails];
-        }
-      });
-    } catch (e) {
-      print('Error fetching data: $e');
-      // Show a mock summary for testing if the API call fails
+      // Using mock data instead of API call
       setState(() {
         _unreadSummaries = [
-          MessageSummary(
-            summary: 'Meeting confirmed at 18:00 at the coffee shop.',
-          )
+          MessageSummary(summary: 'Alice Johnson: "Hey, are you free to meet tomorrow at 3pm?"'),
+          MessageSummary(summary: 'Bob Smith: "The meeting is set on Friday at 10am."'),
         ];
         
         _detectedEvents = [
           EventDetails(
-            title: 'Coffee shop meeting',
-            dateTime: DateTime.now().add(const Duration(hours: 2)),
-            location: 'Coffee shop',
-          )
+            title: 'Meeting with Alice',
+            dateTime: DateTime.now().add(const Duration(days: 1, hours: 3)),
+            location: 'Pietris',
+          ),
+          EventDetails(
+            title: 'Zoom Call',
+            dateTime: DateTime.now().add(const Duration(days: 2, hours: 10)),
+            location: 'online',
+          ),
         ];
+        
+        // Initialize all events as not added to calendar
+        _eventAddedToCalendar = {
+          for (int i = 0; i < _detectedEvents.length; i++) i: false
+        };
+      });
+    } catch (e) {
+      print('Error: $e');
+      // Fallback data in case something goes wrong
+      setState(() {
+        _unreadSummaries = [
+          MessageSummary(summary: 'Alice Johnson: "Hey, are you free to meet tomorrow at 3pm?"'),
+          MessageSummary(summary: 'Bob Smith: "The meeting is set on Friday at 10am."'),
+        ];
+        
+        _detectedEvents = [
+          EventDetails(
+            title: 'Meeting with Alice',
+            dateTime: DateTime.now().add(const Duration(days: 1, hours: 15)),
+            location: 'Pietris',
+          ),
+          EventDetails(
+            title: 'Zoom Call',
+            dateTime: DateTime.now().add(const Duration(days: 2, hours: 10)),
+            location: 'online',
+          ),
+        ];
+        
+        // Initialize all events as not added to calendar
+        _eventAddedToCalendar = {
+          for (int i = 0; i < _detectedEvents.length; i++) i: false
+        };
       });
     } finally {
       setState(() {
@@ -104,7 +155,24 @@ class _HomePageState extends State<HomePage> {
     }
   }
 
-  Future<void> _addEventToCalendar(EventDetails event) async {
+  Future<void> _toggleEventCalendar(int index, EventDetails event) async {
+    // If event is already added to calendar, remove it
+    if (_eventAddedToCalendar[index] == true) {
+      // Here you would implement the actual calendar event removal functionality
+      // For now we just toggle the UI state
+      setState(() {
+        _eventAddedToCalendar[index] = false;
+      });
+      
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Event removed from calendar'),
+          duration: Duration(seconds: 2),
+        ),
+      );
+      return;
+    }
+    
     // First ensure we have calendar permissions
     final hasPermissions = await _calendarService.requestPermissions();
     
@@ -120,13 +188,38 @@ class _HomePageState extends State<HomePage> {
     
     final success = await _calendarService.addEventWithCalendarSelection(context, event);
     
+    if (success) {
+      setState(() {
+        _eventAddedToCalendar[index] = true;
+      });
+    }
+    
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(
           success ? 'Event added to calendar!' : 'Failed to add event to calendar',
         ),
+        duration: const Duration(seconds: 2),
       ),
     );
+  }
+
+  void _nextPage() {
+    if (_currentPageIndex < _platforms.length - 1) {
+      _pageController.nextPage(
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeInOut,
+      );
+    }
+  }
+
+  void _previousPage() {
+    if (_currentPageIndex > 0) {
+      _pageController.previousPage(
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeInOut,
+      );
+    }
   }
 
   @override
@@ -136,158 +229,57 @@ class _HomePageState extends State<HomePage> {
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
-        leading: const Icon(Icons.arrow_back_ios, color: Colors.black54),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_ios, color: Colors.black54),
+          onPressed: _previousPage,
+        ),
         centerTitle: true,
         title: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Icon(FontAwesomeIcons.instagram, color: Colors.pinkAccent),
-              const SizedBox(width: 8),
-              Flexible(
-                child: Text(
-                  'Smart message Instagram',
-                  textAlign: TextAlign.center,
-                  softWrap: true,
-                  style: GoogleFonts.poppins(
-                    color: Colors.black,
-                    fontWeight: FontWeight.bold,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  _platforms[_currentPageIndex].icon,
+                  color: _platforms[_currentPageIndex].iconColor,
+                ),
+                const SizedBox(width: 8),
+                Flexible(
+                  child: Text(
+                    'Smart message ${_platforms[_currentPageIndex].name}',
+                    textAlign: TextAlign.center,
+                    softWrap: true,
+                    overflow: TextOverflow.visible,
+                    style: GoogleFonts.poppins(
+                      color: Colors.black,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                 ),
-              ),
-            ],
+              ],
+            ),
+          ],
+        ),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.arrow_forward_ios, color: Colors.black54),
+            onPressed: _nextPage,
           ),
         ],
       ),
-        actions: const [
-          Icon(Icons.arrow_forward_ios, color: Colors.black54),
-        ],
+      body: PageView.builder(
+        controller: _pageController,
+        itemCount: _platforms.length,
+        onPageChanged: (index) {
+          setState(() {
+            _currentPageIndex = index;
+          });
+        },
+        itemBuilder: (context, index) {
+          return _buildPlatformPage(index);
+        },
       ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : SingleChildScrollView(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    const SizedBox(height: 32),
-                    Container(
-                      padding: const EdgeInsets.all(16),
-                      margin: const EdgeInsets.only(bottom: 24),
-                      decoration: BoxDecoration(
-                        color: Colors.white70,
-                        borderRadius: BorderRadius.circular(16),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withOpacity(0.08),
-                            spreadRadius: 1,
-                            blurRadius: 5,
-                            offset: const Offset(0, 2),
-                          ),
-                        ],
-                      ),
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Icon(FontAwesomeIcons.clock, size: 32),
-                          const SizedBox(width: 24),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  'Time spent today: 1h 30min',
-                                  style: GoogleFonts.poppins(
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                                const SizedBox(height: 6),
-                                Text(
-                                  'Conversation today: 2',
-                                  style: GoogleFonts.poppins(
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    buildCard(
-                      context,
-                      title: 'Unread Messages',
-                      child: Column(
-                        children: _unreadSummaries.isEmpty
-                            ? [const Text('No unread messages')]
-                            : _unreadSummaries.map((summary) => messageRow(
-                                summary.summary, 
-                                summary.eventDetails != null 
-                                    ? Colors.orange 
-                                    : Colors.red,
-                              )).toList(),
-                      ),
-                    ),
-                    buildCard(
-                      context,
-                      title: 'Advanced Summary',
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Expanded(
-                            child: Text(
-                              'Summary of conversations from selected date ...',
-                              style: GoogleFonts.poppins(),
-                            ),
-                          ),
-                          const Icon(FontAwesomeIcons.calendar, color: Colors.black54),
-                        ],
-                      ),
-                    ),
-                    buildCard(
-                      context,
-                      minHeight: 60,
-                      child: Row(
-                        children: [
-                          Expanded(
-                            child: TextField(
-                              decoration: InputDecoration(
-                                hintText: 'Ask me anything ...',
-                                hintStyle: GoogleFonts.poppins(color: Colors.grey),
-                                border: InputBorder.none,
-                              ),
-                            ),
-                          ),
-                          const Icon(Icons.send, color: Colors.black54),
-                        ],
-                      ),
-                    ),
-                    buildCard(
-                      context,
-                      title: 'Detected events',
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: _detectedEvents.isEmpty
-                            ? [const Text('No events detected')]
-                            : _detectedEvents.map((event) => 
-                                GestureDetector(
-                                  onTap: () => _addEventToCalendar(event),
-                                  child: eventRow(
-                                    '${_formatDateTime(event.dateTime)}, ${event.location}',
-                                  ),
-                                ),
-                              ).toList(),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
       bottomNavigationBar: BottomNavigationBar(
         items: const [
           BottomNavigationBarItem(icon: Icon(Icons.star), label: ''),
@@ -302,10 +294,163 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  String _formatDateTime(DateTime dateTime) {
-    final hour = dateTime.hour.toString().padLeft(2, '0');
-    final minute = dateTime.minute.toString().padLeft(2, '0');
-    return 'Date: ${dateTime.day}/${dateTime.month}/${dateTime.year}, Time: $hour:$minute';
+  Widget _buildPlatformPage(int platformIndex) {
+    if (_isLoading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+    
+    return SingleChildScrollView(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const SizedBox(height: 32),
+            Container(
+              padding: const EdgeInsets.all(16),
+              margin: const EdgeInsets.only(bottom: 24),
+              decoration: BoxDecoration(
+                color: Colors.white70,
+                borderRadius: BorderRadius.circular(16),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.08),
+                    spreadRadius: 1,
+                    blurRadius: 5,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Icon(FontAwesomeIcons.clock, size: 32),
+                  const SizedBox(width: 24),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Time spent today: 1h 30min',
+                          style: GoogleFonts.poppins(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          'Conversation today: 2',
+                          style: GoogleFonts.poppins(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            buildCard(
+              context,
+              title: 'Unread Messages',
+              child: Column(
+                children: _unreadSummaries.isEmpty
+                    ? [const Text('No unread messages')]
+                    : _unreadSummaries.map((summary) => messageRow(
+                        summary.summary, 
+                        summary.eventDetails != null 
+                            ? Colors.orange 
+                            : Colors.red,
+                      )).toList(),
+              ),
+            ),
+            buildCard(
+              context,
+              title: 'Advanced Summary',
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Expanded(
+                    child: Text(
+                      'Summary of conversations from selected date ...',
+                      style: GoogleFonts.poppins(),
+                    ),
+                  ),
+                  const Icon(FontAwesomeIcons.calendar, color: Colors.black54),
+                ],
+              ),
+            ),
+            buildCard(
+              context,
+              minHeight: 60,
+              child: Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      decoration: InputDecoration(
+                        hintText: 'Ask me anything ...',
+                        hintStyle: GoogleFonts.poppins(color: Colors.grey),
+                        border: InputBorder.none,
+                      ),
+                    ),
+                  ),
+                  const Icon(Icons.send, color: Colors.black54),
+                ],
+              ),
+            ),
+            buildCard(
+              context,
+              title: 'Detected events',
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: _detectedEvents.isEmpty
+                    ? [const Text('No events detected')]
+                    : List.generate(
+                        _detectedEvents.length,
+                        (index) => GestureDetector(
+                          onTap: () => _toggleEventCalendar(index, _detectedEvents[index]),
+                          child: eventRow(
+                            _formatEventDetails(_detectedEvents[index]),
+                            _eventAddedToCalendar[index] ?? false,
+                          ),
+                        ),
+                      ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  String _formatEventDetails(EventDetails event) {
+    String formattedTime = '';
+    if (event.dateTime.hour < 10) {
+      formattedTime = '0${event.dateTime.hour}';
+    } else {
+      formattedTime = '${event.dateTime.hour}';
+    }
+    
+    if (event.dateTime.minute > 0) {
+      if (event.dateTime.minute < 10) {
+        formattedTime += ':0${event.dateTime.minute}';
+      } else {
+        formattedTime += ':${event.dateTime.minute}';
+      }
+    } else {
+      formattedTime += ':00';
+    }
+    
+    final String dateStr = '${event.dateTime.day}/${event.dateTime.month}/${event.dateTime.year}';
+    
+    if (event.title.toLowerCase().contains('meeting')) {
+      return 'Meeting, ora $formattedTime, ${event.location}';
+    } else if (event.title.toLowerCase().contains('zoom')) {
+      return 'Sedinta Zoom, ora $formattedTime, ${event.location}';
+    } else {
+      return '${event.title}, ora $formattedTime, ${event.location}';
+    }
   }
 
   Widget buildCard(BuildContext context, {String? title, required Widget child, double? minHeight}) {
@@ -362,7 +507,7 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  Widget eventRow(String text) {
+  Widget eventRow(String text, bool isAdded) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 8),
       child: Row(
@@ -370,24 +515,14 @@ class _HomePageState extends State<HomePage> {
           Container(
             padding: const EdgeInsets.all(4),
             decoration: BoxDecoration(
-              color: Colors.blue.withOpacity(0.1),
+              color: isAdded ? Colors.blue : Colors.blue.withOpacity(0.1),
               borderRadius: BorderRadius.circular(8),
               border: Border.all(color: Colors.blue.withOpacity(0.3)),
             ),
-            child: const Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(Icons.add, size: 20, color: Colors.blue),
-                SizedBox(width: 4),
-                Text(
-                  'Add to Calendar',
-                  style: TextStyle(
-                    color: Colors.blue,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 12,
-                  ),
-                ),
-              ],
+            child: Icon(
+              Icons.add,
+              size: 24,
+              color: isAdded ? Colors.white : Colors.blue,
             ),
           ),
           const SizedBox(width: 12),
