@@ -1,6 +1,57 @@
-# frontend
+# Smart Messages App
 
-A new Flutter project.
+A Flutter application for managing and summarizing social media conversations.
+
+## Advanced Summary Feature
+
+The Advanced Summary feature allows you to:
+
+1. Upload one or more files containing social media conversations (supported formats: TXT, JSON, CSV)
+2. Automatically extract people and conversation dates from the files
+3. Select a person and date to generate a summary of your conversations with that person on that specific day
+
+### Supported File Formats
+
+The app supports various formats of exported social media conversations:
+
+#### Plain Text Format:
+
+```
+Sender: Message [Timestamp]
+```
+
+Example:
+```
+John: Hey, how are you? [2024-03-24 10:30:00]
+Me: I'm good, thanks! [2024-03-24 10:32:00]
+```
+
+#### JSON Format:
+
+```json
+{
+  "messages": [
+    {
+      "sender": "John",
+      "content": "Hey, how are you?",
+      "timestamp": "2024-03-24 10:30:00"
+    },
+    {
+      "sender": "Me",
+      "content": "I'm good, thanks!",
+      "timestamp": "2024-03-24 10:32:00"
+    }
+  ]
+}
+```
+
+### Testing the Feature
+
+You can use the "Generate Sample Data" option in the top-right menu of the Advanced Summary screen to create sample conversation data for testing.
+
+### Privacy
+
+All conversation data is processed locally on your device. The app only sends the selected conversation to the summarization API when you explicitly request a summary.
 
 ## Getting Started
 

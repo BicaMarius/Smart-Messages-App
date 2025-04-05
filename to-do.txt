@@ -36,13 +36,12 @@ Ce mai trb sa fac?
 - functionalitaea modului detected events => afisarea corespunzatoare a listei de evenimente (fie in timp real pt mesajele necitite fie pt mesaje mai vechi de la advanced summary)
 - functionalitatea butonului add events => adauga in calendarul telefonului/ cloud
 - buton add events apasat din nou => eliminarea evenimentului adaugat anterior
-- swipe right pt stergere/ dismiss event
 - functionalitatea butoanelor din Bottom Navigation Bar ( marcaje, home si setari)
 
  Bug-uri/ Imbunatatiri:
- - daca conectez la tel si dau run pe device se instaleaza app dar nu porneste, ci da timeout, totusi daca o deschid dupa din telefon merge
- - pe virtual device nu merge detect events, probabil ca nu are nici un calendar asignat
  - trebuie sa verific daca merge si pe ios
+ - cred ca o sa elimin functia de unread messages si sa ma axez doar pe mesajele exportate
+ - nu merge advanced summary dar e identificata corect persoana din conversatie si datele cu mesaje
 
  Rezolvate:
  - header ul nu incape si apare cu "...", va trb sa fac fontul mai mic sau sa trec pe urmatorul rand automat

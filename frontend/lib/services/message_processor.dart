@@ -93,7 +93,7 @@ class MessageProcessor {
     // In a real app, this would be more sophisticated with NLP
     final words = text.split(' ');
     if (words.length > 5) {
-      return words.take(5).join(' ') + '...';
+      return '${words.take(5).join(' ')}...';
     }
     return text;
   }
