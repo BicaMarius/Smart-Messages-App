@@ -11,6 +11,7 @@ import 'dart:convert';
 import 'package:file_picker/file_picker.dart';
 import 'dart:math';
 import 'dart:io';
+import 'package:intl/intl.dart';
 
 void main() {
   runApp(MyApp());
@@ -75,9 +76,21 @@ class _HomePageState extends State<HomePage> {
   ];
   
   List<MessageSummary> _unreadSummaries = [];
-  List<EventDetails> _detectedEvents = [];
+  
+  // Map to store platform-specific detected events
+  Map<String, List<EventDetails>> _platformEvents = {
+    'Instagram': [],
+    'WhatsApp': [],
+    'Messenger': []
+  };
+  
   // Track which events have been added to calendar
-  Map<int, bool> _eventAddedToCalendar = {};
+  Map<String, Map<int, bool>> _eventAddedToCalendar = {
+    'Instagram': {},
+    'WhatsApp': {},
+    'Messenger': {},
+  };
+  
   bool _isLoading = false;
   
   // Advanced Summary variables
@@ -159,22 +172,44 @@ class _HomePageState extends State<HomePage> {
           MessageSummary(summary: 'Bob Smith: "The meeting is set on Friday at 10am."'),
         ];
         
-        _detectedEvents = [
-          EventDetails(
-            title: 'Meeting with Alice',
-            dateTime: DateTime.now().add(const Duration(days: 1, hours: 3)),
-            location: 'Pietris',
-          ),
-          EventDetails(
-            title: 'Zoom Call',
-            dateTime: DateTime.now().add(const Duration(days: 2, hours: 10)),
-            location: 'online',
-          ),
-        ];
+        // Clear WhatsApp events as requested, but keep Instagram and Messenger mock events
+        _platformEvents = {
+          'Instagram': [
+            EventDetails(
+              title: 'Photo Shoot',
+              dateTime: DateTime.now().add(const Duration(days: 3, hours: 14)),
+              location: 'Downtown Studio',
+            ),
+            EventDetails(
+              title: 'Instagram Live',
+              dateTime: DateTime.now().add(const Duration(days: 5, hours: 18)),
+              location: 'online',
+            ),
+          ],
+          'WhatsApp': [], // No hardcoded events for WhatsApp as requested
+          'Messenger': [
+            EventDetails(
+              title: 'Team Chat',
+              dateTime: DateTime.now().add(const Duration(days: 1, hours: 9)),
+              location: 'online',
+            ),
+            EventDetails(
+              title: 'Family Group Call',
+              dateTime: DateTime.now().add(const Duration(days: 4, hours: 20)),
+              location: 'online',
+            ),
+          ],
+        };
         
         // Initialize all events as not added to calendar
         _eventAddedToCalendar = {
-          for (int i = 0; i < _detectedEvents.length; i++) i: false
+          'Instagram': {
+            for (int i = 0; i < _platformEvents['Instagram']!.length; i++) i: false
+          },
+          'WhatsApp': {},
+          'Messenger': {
+            for (int i = 0; i < _platformEvents['Messenger']!.length; i++) i: false
+          },
         };
       });
     } catch (e) {
@@ -186,22 +221,34 @@ class _HomePageState extends State<HomePage> {
           MessageSummary(summary: 'Bob Smith: "The meeting is set on Friday at 10am."'),
         ];
         
-        _detectedEvents = [
-          EventDetails(
-            title: 'Meeting with Alice',
-            dateTime: DateTime.now().add(const Duration(days: 1, hours: 15)),
-            location: 'Pietris',
-          ),
-          EventDetails(
-            title: 'Zoom Call',
-            dateTime: DateTime.now().add(const Duration(days: 2, hours: 10)),
-            location: 'online',
-          ),
-        ];
+        // Clear WhatsApp events, keep mock data for others
+        _platformEvents = {
+          'Instagram': [
+            EventDetails(
+              title: 'Photo Shoot',
+              dateTime: DateTime.now().add(const Duration(days: 3, hours: 14)),
+              location: 'Downtown Studio',
+            ),
+          ],
+          'WhatsApp': [], // No hardcoded events
+          'Messenger': [
+            EventDetails(
+              title: 'Team Chat',
+              dateTime: DateTime.now().add(const Duration(days: 1, hours: 9)),
+              location: 'online',
+            ),
+          ],
+        };
         
         // Initialize all events as not added to calendar
         _eventAddedToCalendar = {
-          for (int i = 0; i < _detectedEvents.length; i++) i: false
+          'Instagram': {
+            for (int i = 0; i < _platformEvents['Instagram']!.length; i++) i: false
+          },
+          'WhatsApp': {},
+          'Messenger': {
+            for (int i = 0; i < _platformEvents['Messenger']!.length; i++) i: false
+          },
         };
       });
     } finally {
@@ -211,21 +258,25 @@ class _HomePageState extends State<HomePage> {
     }
   }
 
-  Future<void> _toggleEventCalendar(int index, EventDetails event) async {
+  Future<void> _toggleEventCalendar(String platform, int index, EventDetails event) async {
     // If event is already added to calendar, remove it
-    if (_eventAddedToCalendar[index] == true) {
-      // Here you would implement the actual calendar event removal functionality
-      // For now we just toggle the UI state
-      setState(() {
-        _eventAddedToCalendar[index] = false;
-      });
+    if (_eventAddedToCalendar[platform]?[index] == true) {
+      // Folosim noua metodă pentru a șterge efectiv evenimentul din calendar
+      final success = await _calendarService.removeEventWithConfirmation(context, event);
       
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Event removed from calendar'),
-          duration: Duration(seconds: 2),
-        ),
-      );
+      if (success) {
+        setState(() {
+          _eventAddedToCalendar[platform]![index] = false;
+        });
+      } else {
+        // Dacă ștergerea a eșuat, afișăm un mesaj și nu schimbăm starea
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Eroare la ștergerea evenimentului din calendar'),
+            duration: Duration(seconds: 2),
+          ),
+        );
+      }
       return;
     }
     
@@ -246,18 +297,16 @@ class _HomePageState extends State<HomePage> {
     
     if (success) {
       setState(() {
-        _eventAddedToCalendar[index] = true;
+        _eventAddedToCalendar[platform]![index] = true;
       });
-    }
-    
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          success ? 'Event added to calendar!' : 'Failed to add event to calendar',
+      
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Event added to calendar'),
+          duration: Duration(seconds: 2),
         ),
-        duration: const Duration(seconds: 2),
-      ),
-    );
+      );
+    }
   }
 
   // Advanced Summary methods
@@ -545,7 +594,7 @@ class _HomePageState extends State<HomePage> {
               !messageText.contains('Apel pierdut') &&
               !messageText.contains('Apel neprimit') &&
               !messageText.contains('fișier atașat')) {
-            apiMessages.add('$name: $messageText');
+            apiMessages.add(message); // Trimitem mesajul complet, inclusiv data
           }
         }
       }
@@ -556,10 +605,53 @@ class _HomePageState extends State<HomePage> {
       
       // Call the API for summarization
       try {
-        final summary = await _apiService.summarizeMessages(apiMessages);
+        print('Trimit ${apiMessages.length} mesaje către API pentru sumarizare și detecția evenimentelor');
+        final apiResult = await _apiService.summarizeMessages(apiMessages);
+        
+        // Procesăm evenimentele detectate
+        List<EventDetails> detectedEvents = [];
+        if (apiResult['detectedEvents'] != null && apiResult['detectedEvents'] is List) {
+          final List<dynamic> eventsList = apiResult['detectedEvents'];
+          print('API a returnat ${eventsList.length} evenimente detectate');
+          
+          for (final event in eventsList) {
+            if (event is Map<String, dynamic>) {
+              try {
+                final eventTitle = event['title'] ?? 'Eveniment nedefinit';
+                final eventDateTime = DateTime.parse(event['dateTime']);
+                final eventLocation = event['location'] ?? '';
+                final eventType = event['eventType'] ?? '';
+                
+                print('Procesez eveniment: $eventTitle, data: ${eventDateTime.toString()}, tip: $eventType');
+                
+                detectedEvents.add(EventDetails(
+                  title: eventTitle,
+                  dateTime: eventDateTime,
+                  location: eventLocation,
+                ));
+              } catch (e) {
+                print('Eroare la parsarea evenimentului: $e');
+              }
+            }
+          }
+          
+          // Actualizăm evenimentele WhatsApp cu cele detectate
+          print('Am procesat ${detectedEvents.length} evenimente pentru afișare');
+          setState(() {
+            _platformEvents['WhatsApp'] = detectedEvents;
+            
+            // Actualizăm statusul de adăugare în calendar
+            _eventAddedToCalendar['WhatsApp'] = {
+              for (int i = 0; i < detectedEvents.length; i++) i: false
+            };
+          });
+        } else {
+          print('API-ul nu a returnat evenimente sau lista este null');
+        }
+        
         setState(() {
           _isSummarizing = false;
-          _conversationSummary = summary['summary'];
+          _conversationSummary = apiResult['summary'];
         });
       } catch (apiError) {
         print('Eroare la apelarea API-ului: $apiError');
@@ -740,34 +832,39 @@ class _HomePageState extends State<HomePage> {
   
   Future<void> _loadConversationData() async {
     try {
-      final prefs = await SharedPreferences.getInstance();
-      final savedData = prefs.getString('conversationData');
+      // Here we would load real conversation data from files
+      // For now, using simple mock data for WhatsApp only
       
-      if (savedData != null) {
-        final Map<String, dynamic> serializedData = jsonDecode(savedData);
-        
-        // Convertim înapoi la formatul original
-        final Map<String, List<DateTime>> loadedData = {};
-        
-        serializedData.forEach((person, dates) {
-          final datesList = (dates as List<dynamic>).map((dateStr) {
-            final parts = dateStr.split('-');
-            return DateTime(
-              int.parse(parts[0]),
-              int.parse(parts[1]),
-              int.parse(parts[2]),
-            );
-          }).toList();
-          
-          loadedData[person] = datesList;
-        });
+      // Reset person dates for WhatsApp only
+      if (_uploadedFilePaths.isNotEmpty && _currentPageIndex == 1) { // 1 is WhatsApp index
+        final mockPeople = ['Rareș', 'Andrei', 'Maria', 'Iulia', 'Victor'];
         
         setState(() {
-          _personDates = loadedData;
+          _availablePeople = mockPeople;
+        
+          // Create dates for each person
+          _personDates = {
+            for (final person in mockPeople)
+              person: List.generate(
+                5,
+                (index) => DateTime.now().subtract(Duration(days: index * 3 + _random.nextInt(5))),
+              )..sort((a, b) => b.compareTo(a)),  // Sort dates in descending order
+          };
         });
+      } else {
+        // For other platforms, clear the data for now
+        if (_currentPageIndex != 1) { // Not WhatsApp
+          setState(() {
+            _availablePeople = [];
+            _personDates = {};
+            _selectedPerson = null;
+            _selectedDate = null;
+            _conversationSummary = null;
+          });
+        }
       }
     } catch (e) {
-      print('Eroare la încărcarea datelor de conversație: $e');
+      print('Error loading conversation data: $e');
     }
   }
 
@@ -918,10 +1015,9 @@ class _HomePageState extends State<HomePage> {
                 ],
               ),
             ),
-            buildCard(
-              context,
-              title: 'Unread Messages',
-              child: Column(
+            _buildDashboardSection(
+              'Unread Messages',
+              Column(
                 children: _unreadSummaries.isEmpty
                     ? [const Text('No unread messages')]
                     : _unreadSummaries.map((summary) => messageRow(
@@ -932,10 +1028,9 @@ class _HomePageState extends State<HomePage> {
                       )).toList(),
               ),
             ),
-            buildCard(
-              context,
-              title: 'Advanced Summary',
-              child: Column(
+            _buildDashboardSection(
+              'Advanced Summary',
+              Column(
                 children: [
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -1096,47 +1191,172 @@ class _HomePageState extends State<HomePage> {
                 ],
               ),
             ),
-            buildCard(
-              context,
-              minHeight: 60,
-              child: Row(
-                children: [
-                  Expanded(
-                    child: TextField(
-                      decoration: InputDecoration(
-                        hintText: 'Ask me anything ...',
-                        hintStyle: GoogleFonts.poppins(color: Colors.grey),
-                        border: InputBorder.none,
-                      ),
-                    ),
-                  ),
-                  const Icon(Icons.send, color: Colors.black54),
-                ],
-              ),
-            ),
-            buildCard(
-              context,
-              title: 'Detected events',
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: _detectedEvents.isEmpty
-                    ? [const Text('No events detected')]
-                    : List.generate(
-                        _detectedEvents.length,
-                        (index) => GestureDetector(
-                          onTap: () => _toggleEventCalendar(index, _detectedEvents[index]),
-                          child: eventRow(
-                            _formatEventDetails(_detectedEvents[index]),
-                            _eventAddedToCalendar[index] ?? false,
-                          ),
-                        ),
-                      ),
-              ),
+            _buildDashboardSection(
+              'Detected Events',
+              _buildDetectedEventsSection(_platforms[platformIndex].name),
             ),
           ],
         ),
       ),
     );
+  }
+
+  Widget _buildDashboardSection(String title, Widget child, {bool showTopBorder = true}) {
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.only(bottom: 15),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(10),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.grey.withOpacity(0.2),
+            spreadRadius: 1,
+            blurRadius: 3,
+            offset: const Offset(0, 1),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (showTopBorder)
+            Container(
+              height: 6,
+              decoration: BoxDecoration(
+                color: _platforms[_currentPageIndex].iconColor,
+                borderRadius: const BorderRadius.only(
+                  topLeft: Radius.circular(10),
+                  topRight: Radius.circular(10),
+                ),
+              ),
+            ),
+          Padding(
+            padding: const EdgeInsets.all(15),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: GoogleFonts.poppins(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 10),
+                child,
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMainDashboard() {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(15),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _buildDashboardSection(
+            'Summary',
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: _unreadSummaries.isEmpty
+                  ? [const Text('No unread messages')]
+                  : List.generate(
+                      _unreadSummaries.length,
+                      (index) => _buildSummaryRow(_unreadSummaries[index].summary),
+                    ),
+            ),
+          ),
+          // Smart Events Section - use the new event panel builder
+          _buildDashboardSection(
+            'Smart Events',
+            _buildEventsPanel(_currentPageIndex),
+            showTopBorder: false,
+          ),
+          _buildAdvancedSummaryButton(),
+        ],
+      ),
+    );
+  }
+  
+  Widget _buildSummaryRow(String summaryText) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Icon(Icons.circle, size: 8, color: Colors.blue),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              summaryText,
+              style: GoogleFonts.poppins(),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+  
+  Widget _buildAdvancedSummaryButton() {
+    return GestureDetector(
+      onTap: () => _navigateToAdvancedSummary(),
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 15),
+        padding: const EdgeInsets.all(15),
+        decoration: BoxDecoration(
+          color: Colors.blue.shade50,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: Colors.blue.shade100),
+        ),
+        child: Row(
+          children: [
+            const Icon(Icons.insights, color: Colors.blue),
+            const SizedBox(width: 15),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Advanced Summary',
+                    style: GoogleFonts.poppins(
+                      fontWeight: FontWeight.bold,
+                      color: Colors.blue.shade800,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    'Get a detailed analysis of your conversations',
+                    style: GoogleFonts.poppins(
+                      fontSize: 12,
+                      color: Colors.blue.shade700,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const Icon(Icons.arrow_forward_ios, size: 16, color: Colors.blue),
+          ],
+        ),
+      ),
+    );
+  }
+  
+  void _navigateToAdvancedSummary() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => const AdvancedSummaryScreen(),
+      ),
+    ).then((_) {
+      // When returning from the screen, reload data
+      _fetchMessages();
+      _loadConversationData();
+    });
   }
 
   String _formatEventDetails(EventDetails event) {
@@ -1303,6 +1523,283 @@ class _HomePageState extends State<HomePage> {
         content: Text('Fișierul a fost șters cu succes'),
         duration: const Duration(seconds: 2),
       ),
+    );
+  }
+
+  Future<void> _processSelectedConversation() async {
+    if (_selectedPerson == null || _selectedDate == null) {
+      return;
+    }
+    
+    // Check if we're on WhatsApp tab, otherwise don't proceed
+    if (_currentPageIndex != 1) { // 1 is WhatsApp index
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Advanced summary is only available for WhatsApp conversations'),
+          duration: Duration(seconds: 3),
+        ),
+      );
+      return;
+    }
+    
+    setState(() {
+      _isSummarizing = true;
+      _conversationSummary = null;
+    });
+
+    try {
+      // In a real app, you would load actual messages for the selected person and date
+      // For demo purposes, we'll just generate some mock messages
+      final List<String> mockMessages = _generateMockMessages(_selectedPerson!, _selectedDate!);
+      
+      // Call the API to get a summary
+      final apiResult = await _apiService.summarizeMessages(mockMessages);
+      
+      String summary = apiResult['summary'] ?? 'No summary available.';
+      
+      // Process detected events if available
+      List<EventDetails> detectedEvents = [];
+      if (apiResult['detectedEvents'] != null && apiResult['detectedEvents'] is List) {
+        final List<dynamic> eventsList = apiResult['detectedEvents'];
+        
+        for (final event in eventsList) {
+          if (event is Map<String, dynamic>) {
+            try {
+              detectedEvents.add(EventDetails(
+                title: event['title'] ?? 'Unnamed Event',
+                dateTime: DateTime.parse(event['dateTime']),
+                location: event['location'] ?? '',
+              ));
+            } catch (e) {
+              print('Error parsing event: $e');
+            }
+          }
+        }
+      }
+      
+      // Update state with the new summary and events
+      setState(() {
+        _conversationSummary = summary;
+        
+        // Update WhatsApp events with detected events
+        _platformEvents['WhatsApp'] = detectedEvents;
+        
+        // Initialize calendar status for new events
+        _eventAddedToCalendar['WhatsApp'] = {
+          for (int i = 0; i < detectedEvents.length; i++) i: false
+        };
+      });
+    } catch (e) {
+      print('Error processing conversation: $e');
+      setState(() {
+        _conversationSummary = 'Error generating summary: $e';
+      });
+    } finally {
+      setState(() {
+        _isSummarizing = false;
+      });
+    }
+  }
+  
+  // Generate mock messages for testing purposes
+  List<String> _generateMockMessages(String person, DateTime date) {
+    final dateStr = DateFormat('dd/MM/yyyy').format(date);
+    final List<String> messages = [];
+    
+    // Different mock conversations based on the person
+    if (person == 'Rareș') {
+      messages.addAll([
+        '19/03/2023, 10:15 - Rareș: Salut! Cum ești?',
+        '19/03/2023, 10:18 - You: Bine, mulțumesc! Tu?',
+        '19/03/2023, 10:20 - Rareș: Foarte bine. Auzi, voiam să te întreb dacă ești liber pe 25 Martie.',
+        '19/03/2023, 10:22 - You: Pe 25? Da, cred că sunt liber. De ce?',
+        '19/03/2023, 10:25 - Rareș: Îmi sărbătoresc ziua de naștere la restaurantul Pietris, la ora 19:00. Mi-ar plăcea să vii și tu!',
+        '19/03/2023, 10:26 - You: Cu mare plăcere! Mulțumesc pentru invitație.',
+        '19/03/2023, 10:28 - Rareș: Super! O să mai vină și Andrei, Maria și câțiva colegi de la birou.',
+        '19/03/2023, 10:30 - You: Perfect! Ne vedem atunci. Să-ți aduc vreun cadou special?',
+        '19/03/2023, 10:32 - Rareș: Nu e nevoie de cadouri, doar prezența ta contează. 😊',
+      ]);
+    } else if (person == 'Maria') {
+      messages.addAll([
+        '22/03/2023, 09:05 - Maria: Bună dimineața! Ești disponibil pentru o ședință Zoom mâine la 14:30?',
+        '22/03/2023, 09:10 - You: Bună! Da, sunt disponibil atunci.',
+        '22/03/2023, 09:12 - Maria: Excelent! Voi trimite link-ul de Zoom înainte de ședință.',
+        '22/03/2023, 09:15 - Maria: Am de discutat despre proiectul nou.',
+        '22/03/2023, 09:18 - You: Perfect, aștept cu interes!',
+        '22/03/2023, 14:20 - Maria: Link-ul pentru ședința de la 14:30: https://zoom.us/j/123456789',
+      ]);
+    } else if (person == 'Andrei') {
+      messages.addAll([
+        '18/03/2023, 16:00 - Andrei: Hey, vrei să mergem la film sâmbătă?',
+        '18/03/2023, 16:05 - You: Sună bine! Ce film ai vrea să vedem?',
+        '18/03/2023, 16:08 - Andrei: Se dă noul film Avatar la Cinema City din mall, începe la 18:30.',
+        '18/03/2023, 16:10 - You: Perfect! Ne întâlnim acolo la 18:00?',
+        '18/03/2023, 16:12 - Andrei: Da, ne vedem la intrare. Iau eu biletele online.',
+        '18/03/2023, 16:15 - You: Super, mulțumesc! Ne vedem sâmbătă.',
+      ]);
+    } else if (person == 'Victor') {
+      messages.addAll([
+        '21/03/2023, 11:00 - Victor: Salut! Am programat întâlnirea cu clientul pentru joi la ora 10:00 la biroul nostru.',
+        '21/03/2023, 11:05 - You: Ok, voi fi acolo. Mulțumesc pentru informare!',
+        '21/03/2023, 11:08 - Victor: Te rog să pregătești prezentarea pentru proiectul XYZ.',
+        '21/03/2023, 11:10 - You: Am înțeles, o voi avea gata până atunci.',
+        '21/03/2023, 11:15 - Victor: Excelent! Și adu și rapoartele financiare, te rog.',
+      ]);
+    } else if (person == 'Iulia') {
+      messages.addAll([
+        '20/03/2023, 15:30 - Iulia: Bună! Echipa organizează o ieșire pentru drumeție duminică în Pădurea Băneasa.',
+        '20/03/2023, 15:35 - You: Sună interesant! La ce oră?',
+        '20/03/2023, 15:38 - Iulia: Ne întâlnim la intrarea în pădure la ora 09:00. Vom face un traseu de aproximativ 3 ore.',
+        '20/03/2023, 15:40 - You: Perfect! Vin și eu. Trebuie să aduc ceva?',
+        '20/03/2023, 15:43 - Iulia: Doar apă, ceva de ronțăit și încălțăminte comodă. Ne ocupăm noi de restul.',
+        '20/03/2023, 15:45 - You: Super, abia aștept!',
+      ]);
+    } else {
+      // Generic conversation for any other person
+      messages.addAll([
+        '$dateStr, 12:00 - $person: Salut! Ce mai faci?',
+        '$dateStr, 12:05 - You: Bine, mulțumesc! Tu?',
+        '$dateStr, 12:08 - $person: Foarte bine! Voiam să te întreb dacă ai timp săptămâna viitoare să ne vedem.',
+        '$dateStr, 12:10 - You: Sigur! Când ți-ar conveni?',
+        '$dateStr, 12:15 - $person: Ce zici de marți la 17:00, la cafeneaua din centru?',
+        '$dateStr, 12:18 - You: Perfect pentru mine! Ne vedem atunci.',
+      ]);
+    }
+    
+    return messages;
+  }
+
+  Widget _buildEventsPanel(int index) {
+    final platform = _platforms[index].name;
+    final platformColor = _platforms[index].iconColor;
+    
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(10),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.grey.withOpacity(0.2),
+            spreadRadius: 1,
+            blurRadius: 3,
+            offset: const Offset(0, 1),
+          ),
+        ],
+      ),
+      padding: const EdgeInsets.all(15),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(_platforms[index].icon, color: platformColor, size: 18),
+              const SizedBox(width: 6),
+              Text(
+                'Detected Events',
+                style: GoogleFonts.poppins(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          const Divider(height: 1),
+          const SizedBox(height: 10),
+          _buildDetectedEventsSection(platform),
+        ],
+      ),
+    );
+  }
+  
+  Widget _buildDetectedEventsSection(String platform) {
+    final events = _platformEvents[platform] ?? [];
+    
+    if (events.isEmpty) {
+      return const Padding(
+        padding: EdgeInsets.symmetric(vertical: 20),
+        child: Center(
+          child: Text(
+            'No events detected',
+            style: TextStyle(color: Colors.grey),
+          ),
+        ),
+      );
+    }
+    
+    return ListView.builder(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      itemCount: events.length,
+      itemBuilder: (context, index) {
+        final event = events[index];
+        final isAdded = _eventAddedToCalendar[platform]?[index] ?? false;
+        
+        return Card(
+          margin: const EdgeInsets.symmetric(vertical: 8),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+            side: BorderSide(
+              color: isAdded ? Colors.green.shade200 : Colors.grey.shade300,
+              width: 1,
+            ),
+          ),
+          child: ListTile(
+            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            title: Text(
+              event.title,
+              style: const TextStyle(fontWeight: FontWeight.bold),
+            ),
+            subtitle: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const SizedBox(height: 4),
+                Row(
+                  children: [
+                    const Icon(Icons.calendar_today, size: 14, color: Colors.grey),
+                    const SizedBox(width: 4),
+                    Text(
+                      DateFormat('MMM d, yyyy').format(event.dateTime),
+                      style: const TextStyle(color: Colors.grey),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 2),
+                Row(
+                  children: [
+                    const Icon(Icons.access_time, size: 14, color: Colors.grey),
+                    const SizedBox(width: 4),
+                    Text(
+                      DateFormat('h:mm a').format(event.dateTime),
+                      style: const TextStyle(color: Colors.grey),
+                    ),
+                  ],
+                ),
+                if (event.location.isNotEmpty) ...[
+                  const SizedBox(height: 2),
+                  Row(
+                    children: [
+                      const Icon(Icons.location_on, size: 14, color: Colors.grey),
+                      const SizedBox(width: 4),
+                      Text(
+                        event.location,
+                        style: const TextStyle(color: Colors.grey),
+                      ),
+                    ],
+                  ),
+                ],
+              ],
+            ),
+            trailing: IconButton(
+              icon: Icon(
+                isAdded ? Icons.event_available : Icons.calendar_month_outlined,
+                color: isAdded ? Colors.green : Colors.blue,
+              ),
+              onPressed: () => _toggleEventCalendar(platform, index, event),
+            ),
+          ),
+        );
+      },
     );
   }
 }

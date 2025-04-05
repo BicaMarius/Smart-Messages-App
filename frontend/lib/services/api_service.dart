@@ -59,7 +59,10 @@ class ApiService {
     print('Folosim sumarizare LOCALĂ pentru că serverul nu e disponibil');
     
     if (messages.isEmpty) {
-      return {'summary': 'Nu există mesaje disponibile pentru sumarizare.'};
+      return {
+        'summary': 'Nu există mesaje disponibile pentru sumarizare.',
+        'detectedEvents': []
+      };
     }
     
     // Creăm lista de participanți
@@ -100,7 +103,123 @@ class ApiService {
       summary = 'În această conversație, ${uniquePeople.join(' și ')} au schimbat ${messages.length} mesaje.';
     }
     
-    return {'summary': summary};
+    // Detectăm evenimente locale
+    final List<Map<String, dynamic>> detectedEvents = [];
+    
+    // Căutăm mesaje cu "La mulți ani"
+    final birthdayRegex = RegExp(r'(\d{1,2})[\/\.\-](\d{1,2})[\/\.\-](\d{4}),\s+\d{1,2}:\d{2}\s+\-\s+([^:]+):\s+La\s+mulți\s+ani', caseSensitive: false);
+    final birthdayMentionRegex = RegExp(r'zile?(\s+de)?\s+na[șs]tere', caseSensitive: false);
+    
+    // Prim pas: verificăm mențiuni directe de tipul "La mulți ani"
+    for (final message in messages) {
+      final match = birthdayRegex.firstMatch(message);
+      if (match != null) {
+        try {
+          final day = int.parse(match.group(1)!);
+          final month = int.parse(match.group(2)!) - 1; // JS months are 0-indexed
+          final year = int.parse(match.group(3)!);
+          final senderPerson = match.group(4)!.trim().replaceAll('You', 'Eu');
+          
+          // Determine the person receiving the birthday wishes
+          final List<String> peopleInConversation = messages
+            .where((msg) => msg.contains(':') && !msg.contains('Mesajele'))
+            .map((msg) {
+              final parts = msg.split('-');
+              return parts.length > 1 ? parts[1].split(':')[0].trim() : '';
+            })
+            .where((name) => name.isNotEmpty && name != 'You' && name != senderPerson)
+            .toSet()
+            .toList();
+          
+          // Dacă avem doar o persoană în conversație, e simplu
+          if (peopleInConversation.length == 1) {
+            final recipientPerson = peopleInConversation.first;
+            final eventDate = DateTime(year, month, day, 0, 0);
+            
+            detectedEvents.add({
+              'title': 'Ziua de naștere a lui $recipientPerson',
+              'dateTime': eventDate.toIso8601String(),
+              'location': '',
+              'eventType': 'Zi de naștere'
+            });
+            
+            print('Detectat ziua de naștere pentru $recipientPerson pe ${eventDate.day}/${eventDate.month}/${eventDate.year}');
+          }
+          // Altfel, căutăm în mesaje pentru a identifica persoana
+          else {
+            // Verificăm dacă există un mesaj care menționează ziua de naștere
+            for (final otherMsg in messages) {
+              if (otherMsg != message && birthdayMentionRegex.hasMatch(otherMsg)) {
+                // Extragem numele persoanelor menționate în acest mesaj
+                for (final person in peopleInConversation) {
+                  if (otherMsg.contains(person)) {
+                    final eventDate = DateTime(year, month, day, 0, 0);
+                    
+                    detectedEvents.add({
+                      'title': 'Ziua de naștere a lui $person',
+                      'dateTime': eventDate.toIso8601String(),
+                      'location': '',
+                      'eventType': 'Zi de naștere'
+                    });
+                    
+                    print('Detectat ziua de naștere pentru $person pe ${eventDate.day}/${eventDate.month}/${eventDate.year}');
+                    break;
+                  }
+                }
+              }
+            }
+          }
+        } catch (e) {
+          print('Eroare la procesarea evenimentului local: $e');
+        }
+      }
+    }
+    
+    // Căutăm și alte tipuri de evenimente (întâlniri, ședințe)
+    final meetingRegex = RegExp(r'(?:întâlnire|ședință|meeting|zoom|webinar).*?(la|on|în|at)\s+(\d{1,2})[\/\.\-](\d{1,2})(?:[\/\.\-](\d{4}))?(?:\s+(?:la|at)\s+(\d{1,2})(?::(\d{1,2}))?)?', caseSensitive: false);
+    
+    for (final message in messages) {
+      final match = meetingRegex.firstMatch(message);
+      if (match != null) {
+        try {
+          final day = int.parse(match.group(2)!);
+          final month = int.parse(match.group(3)!) - 1;
+          final yearStr = match.group(4);
+          final year = yearStr != null ? int.parse(yearStr) : DateTime.now().year;
+          
+          int hour = 12, minute = 0;
+          if (match.group(5) != null) {
+            hour = int.parse(match.group(5)!);
+            if (match.group(6) != null) {
+              minute = int.parse(match.group(6)!);
+            }
+          }
+          
+          final eventDate = DateTime(year, month, day, hour, minute);
+          
+          // Extract location if mentioned
+          String location = '';
+          final locationMatch = RegExp(r'(?:la|în|at)\s+([^.,]+)', caseSensitive: false).firstMatch(message);
+          if (locationMatch != null) {
+            location = locationMatch.group(1)!.trim();
+          }
+          
+          detectedEvents.add({
+            'title': message.contains('zoom') || message.contains('Zoom') ? 'Ședință Zoom' : 'Întâlnire',
+            'dateTime': eventDate.toIso8601String(),
+            'location': location,
+            'eventType': message.contains('zoom') || message.contains('Zoom') ? 'Ședință online' : 'Întâlnire'
+          });
+        } catch (e) {
+          print('Eroare la procesarea evenimentului de întâlnire: $e');
+        }
+      }
+    }
+    
+    return {
+      'summary': summary,
+      'detectedEvents': detectedEvents
+    };
   }
   
   // Metoda pentru a sumariza mesajele
@@ -158,6 +277,24 @@ class ApiService {
         if (data['summary'] == null || data['summary'].toString().trim().isEmpty) {
           print('API a returnat un sumar gol, folosim sumarizare locală');
           return _generateMockSummary(messages);
+        }
+        
+        // Convertim eventurile din JSON în obiecte dacă există
+        if (data['detectedEvents'] != null && data['detectedEvents'] is List) {
+          final List<dynamic> eventsList = data['detectedEvents'];
+          final List<Map<String, dynamic>> formattedEvents = [];
+          
+          for (final event in eventsList) {
+            if (event is Map<String, dynamic>) {
+              formattedEvents.add(event);
+            }
+          }
+          
+          // Actualizăm data cu evenimentele formatate
+          data['detectedEvents'] = formattedEvents;
+        } else {
+          // Asigurăm-ne că avem întotdeauna o listă de evenimente, chiar dacă e goală
+          data['detectedEvents'] = [];
         }
         
         return data;

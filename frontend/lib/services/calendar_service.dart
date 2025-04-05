@@ -8,6 +8,9 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 class CalendarService {
   final DeviceCalendarPlugin _calendarPlugin = DeviceCalendarPlugin();
   
+  // Map pentru a ține evidența ID-urilor evenimentelor adăugate în calendar
+  final Map<String, String> _addedEventIds = {};
+  
   CalendarService() {
     // Initialize timezone data
     tz_data.initializeTimeZones();
@@ -65,22 +68,33 @@ class CalendarService {
   }
   
   /// Add an event to the specified calendar
-  Future<bool> addEvent(EventDetails eventDetails, String calendarId) async {
+  Future<String?> addEvent(EventDetails eventDetails, String calendarId) async {
     // For web, show a mock success message
     if (kIsWeb) {
-      return true; // Mock success for demo purposes
+      return 'mock-event-id'; // Mock ID for web demo
     }
     
     // First ensure we have permissions
     final hasPermissions = await requestPermissions();
     if (!hasPermissions) {
-      return false;
+      return null;
     }
     
     try {
       // Convert DateTime to TZDateTime
       final startTime = _toTZDateTime(eventDetails.dateTime);
-      final endTime = _toTZDateTime(eventDetails.dateTime.add(const Duration(hours: 1)));
+      
+      // Pentru evenimente de tip zi de naștere, setăm durata întreaga zi
+      final bool isBirthday = eventDetails.title.toLowerCase().contains('naștere') || 
+                             eventDetails.title.toLowerCase().contains('birthday');
+      
+      // Setăm end time în funcție de tip: 1 oră pentru întâlniri, întreaga zi pentru zile de naștere
+      final endTime = isBirthday 
+          ? _toTZDateTime(eventDetails.dateTime.add(const Duration(days: 1)))
+          : _toTZDateTime(eventDetails.dateTime.add(const Duration(hours: 1)));
+      
+      // Generate a unique key for this event
+      final eventKey = '${eventDetails.title}_${eventDetails.dateTime.toIso8601String()}';
       
       // Create a new event
       final event = Event(
@@ -90,13 +104,72 @@ class CalendarService {
         start: startTime,
         end: endTime,
         location: eventDetails.location,
+        allDay: isBirthday, // Set to true for birthdays
       );
       
       // Add the event to the calendar
       final createEventResult = await _calendarPlugin.createOrUpdateEvent(event);
-      return createEventResult?.isSuccess ?? false;
+      
+      if (createEventResult != null && createEventResult.isSuccess && createEventResult.data != null) {
+        // Store the created event ID
+        final eventId = createEventResult.data!;
+        _addedEventIds[eventKey] = eventId;
+        print('Eveniment adăugat în calendar cu ID: $eventId');
+        return eventId;
+      }
+      
+      return null;
     } catch (e) {
       print('Error creating calendar event: $e');
+      return null;
+    }
+  }
+  
+  /// Remove an event from the calendar
+  Future<bool> removeEvent(EventDetails eventDetails, String? eventId) async {
+    // Skip for web
+    if (kIsWeb) {
+      return true; // Mock success for web
+    }
+    
+    // First ensure we have permissions
+    final hasPermissions = await requestPermissions();
+    if (!hasPermissions) {
+      return false;
+    }
+    
+    try {
+      // Generate the event key
+      final eventKey = '${eventDetails.title}_${eventDetails.dateTime.toIso8601String()}';
+      
+      // Get the event ID from our map if not provided
+      final String? idToDelete = eventId ?? _addedEventIds[eventKey];
+      
+      if (idToDelete == null) {
+        print('Nu s-a găsit ID-ul evenimentului pentru ștergere');
+        return false;
+      }
+      
+      // Get all calendars
+      final calendars = await getCalendars();
+      
+      // Try to delete from each calendar (we don't always know which one it's in)
+      for (final calendar in calendars) {
+        if (calendar.id != null) {
+          final deleteResult = await _calendarPlugin.deleteEvent(calendar.id!, idToDelete);
+          
+          if (deleteResult != null && deleteResult.isSuccess && deleteResult.data != null && deleteResult.data!) {
+            print('Eveniment șters cu succes din calendar: $idToDelete');
+            // Remove the ID from our map
+            _addedEventIds.remove(eventKey);
+            return true;
+          }
+        }
+      }
+      
+      return false;
+    } catch (e) {
+      print('Error removing calendar event: $e');
       return false;
     }
   }
@@ -139,7 +212,8 @@ class CalendarService {
     
     // If there's only one calendar, use that
     if (calendars.length == 1) {
-      return await addEvent(eventDetails, calendars.first.id!);
+      final eventId = await addEvent(eventDetails, calendars.first.id!);
+      return eventId != null;
     }
     
     // Show a dialog to select a calendar
@@ -165,7 +239,73 @@ class CalendarService {
     );
     
     if (selectedCalendar != null && selectedCalendar.id != null) {
-      return await addEvent(eventDetails, selectedCalendar.id!);
+      final eventId = await addEvent(eventDetails, selectedCalendar.id!);
+      return eventId != null;
+    }
+    
+    return false;
+  }
+  
+  /// Remove event from calendar with confirmation
+  Future<bool> removeEventWithConfirmation(
+    BuildContext context,
+    EventDetails eventDetails
+  ) async {
+    // For web, show a dialog explaining that calendar integration isn't available
+    if (kIsWeb) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Event would be removed from calendar on a mobile device'),
+          duration: Duration(seconds: 2),
+        ),
+      );
+      return true; // Return true for demo purposes
+    }
+    
+    final hasPermissions = await requestPermissions();
+    if (!hasPermissions) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Calendar permissions are required to remove an event'),
+        ),
+      );
+      return false;
+    }
+    
+    // Ask for confirmation
+    final shouldRemove = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Remove from Calendar'),
+        content: Text('Are you sure you want to remove "${eventDetails.title}" from your calendar?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Remove'),
+          ),
+        ],
+      ),
+    );
+    
+    if (shouldRemove == true) {
+      final success = await removeEvent(eventDetails, null);
+      
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            success 
+              ? 'Event removed from calendar' 
+              : 'Failed to remove event from calendar',
+          ),
+          duration: const Duration(seconds: 2),
+        ),
+      );
+      
+      return success;
     }
     
     return false;

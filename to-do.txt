@@ -12,9 +12,12 @@ Ce am facut?
 - Carduri responsive pentru modulele principale (Unread Messages, Advanced Summary, Detected Events)
 - Zona „Ask me anything” cu input de la tastatura si hint + buton send
 - Bottom Navigation Bar
+- functionalitaea modului detected events => afisarea corespunzatoare a listei de evenimente (advanced summary)
+- functionalitatea butonului add events => adauga in calendarul telefonului/ cloud
+- buton add events apasat din nou => eliminarea evenimentului adaugat anterior
 - Schimbarea panelului de la instagram catre messenger sau whatsApp prin sageti sau swipe stanga/dreapta
+- functionalitatea butonului calendar => popUp cu selectarea si validarea mesajelor din acea data, apoi afisare sumarizarii in modul
 - Compatibilitate pt orice dispozitiv (folosind SingleChildScrollView pt overflow si Expanded și Flexible pentru a ajusta dimensiunile elementelor dinamice)
-- Prototip pt functia de unread messages si detected events (am trimis un mesaj predefinit de model de conversatie si am pus rezumatul lui in unread messages si evenimentul aferent detectat)
 
 Ce mai trb sa fac?
  BACKEND:
@@ -30,21 +33,10 @@ Ce mai trb sa fac?
 - finisare UI si imbunatatiri
 - statistica pt mesaje
 - functia de unread Messages (citeste mesajele necitite si afiseaza in timp real o lista cu rezumatele)
-- fisarea importantei mesajului si detalii avansate
-- functionalitatea butonului calendar => popUp cu selectarea si validarea mesajelor din acea data, apoi afisare sumarizarii in modul
+- afisarea importantei mesajului si detalii avansate
 - functionalitatea butonului send => trimite catre asistentul AI mesajul si deschide o conv cu acesta despre mesajele sumarizate
-- functionalitaea modului detected events => afisarea corespunzatoare a listei de evenimente (fie in timp real pt mesajele necitite fie pt mesaje mai vechi de la advanced summary)
-- functionalitatea butonului add events => adauga in calendarul telefonului/ cloud
-- buton add events apasat din nou => eliminarea evenimentului adaugat anterior
 - functionalitatea butoanelor din Bottom Navigation Bar ( marcaje, home si setari)
 
  Bug-uri/ Imbunatatiri:
+ - detected event da rateuri cateodata, voi oferi un prompt mai bun catre AI
  - trebuie sa verific daca merge si pe ios
- - cred ca o sa elimin functia de unread messages si sa ma axez doar pe mesajele exportate
- - nu merge advanced summary dar e identificata corect persoana din conversatie si datele cu mesaje
-
- Rezolvate:
- - header ul nu incape si apare cu "...", va trb sa fac fontul mai mic sau sa trec pe urmatorul rand automat
- - trb sa elimin campul time din detected events reprezentand doar ora locala, nefolositor, am nevoie de ora meetingului
- - cred ca ar fi mai util sa las doar un buton simplu in forma de cerc pt add to calendar, fara hintul aferent
-
