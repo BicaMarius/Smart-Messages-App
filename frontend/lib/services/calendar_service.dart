@@ -1,5 +1,5 @@
 import 'package:device_calendar/device_calendar.dart';
-import 'package:frontend/models/message_summary.dart';
+import 'package:frontend/features/home/domain/models/event_details.dart';
 import 'package:flutter/material.dart';
 import 'package:timezone/timezone.dart' as tz;
 import 'package:timezone/data/latest.dart' as tz_data;
@@ -84,13 +84,13 @@ class CalendarService {
       // Convert DateTime to TZDateTime
       final startTime = _toTZDateTime(eventDetails.dateTime);
       
-      // Pentru evenimente de tip zi de naștere, setăm durata întreaga zi
-      final bool isBirthday = eventDetails.title.toLowerCase().contains('naștere') || 
-                             eventDetails.title.toLowerCase().contains('birthday');
+      // Use the isAllDay flag from EventDetails to determine if it's an all-day event
+      final bool isAllDay = eventDetails.isAllDay;
       
-      // Setăm end time în funcție de tip: 1 oră pentru întâlniri, întreaga zi pentru zile de naștere
-      final endTime = isBirthday 
-          ? _toTZDateTime(eventDetails.dateTime.add(const Duration(days: 1)))
+      // For all-day events, set the end time to the next day at midnight
+      // For regular events, set the end time to 1 hour after the start time
+      final endTime = isAllDay 
+          ? _toTZDateTime(DateTime(eventDetails.dateTime.year, eventDetails.dateTime.month, eventDetails.dateTime.day + 1))
           : _toTZDateTime(eventDetails.dateTime.add(const Duration(hours: 1)));
       
       // Generate a unique key for this event
@@ -104,7 +104,7 @@ class CalendarService {
         start: startTime,
         end: endTime,
         location: eventDetails.location,
-        allDay: isBirthday, // Set to true for birthdays
+        allDay: isAllDay, // Use the isAllDay flag directly
       );
       
       // Add the event to the calendar
@@ -158,7 +158,7 @@ class CalendarService {
         if (calendar.id != null) {
           final deleteResult = await _calendarPlugin.deleteEvent(calendar.id!, idToDelete);
           
-          if (deleteResult != null && deleteResult.isSuccess && deleteResult.data != null && deleteResult.data!) {
+          if (deleteResult.isSuccess && deleteResult.data != null && deleteResult.data!) {
             print('Eveniment șters cu succes din calendar: $idToDelete');
             // Remove the ID from our map
             _addedEventIds.remove(eventKey);

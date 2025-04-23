@@ -6,6 +6,8 @@ Ce am facut?
 - Gestionarea Erorilor: Am adăugat un middleware global care captează și raportează erorile pentru depanare
 - Detectarea informatiilor de tip eveniment si listarea lor
 - Am inlocuit modelul DeepSeek R1 cu DS R1 distill Qwens 32B si am obtinut rezultate mai bune si mai rapide de sumarizare
+- Am inlocuit modelul cu Llama 4 Scout si am obtinut rezultate mai bune si o intelegere mai buna a textului
+- Restructurare cod conform principiilor SOLID,KISS,DRY,etc
 
  FRONTEND:
 - AppBar personalizat cu titlu centrat și iconițe la stânga/dreapta
@@ -14,7 +16,15 @@ Ce am facut?
 - Bottom Navigation Bar
 - Schimbarea panelului de la instagram catre messenger sau whatsApp prin sageti sau swipe stanga/dreapta
 - Compatibilitate pt orice dispozitiv (folosind SingleChildScrollView pt overflow si Expanded și Flexible pentru a ajusta dimensiunile elementelor dinamice)
-- Prototip pt functia de unread messages si detected events (am trimis un mesaj predefinit de model de conversatie si am pus rezumatul lui in unread messages si evenimentul aferent detectat)
+- Selectarea unei persoane valide cu care ai conversat bazat pe fisierele .txt importate
+- Gestionarea fisierelor importate (adauga, sterge, inlocuieste, reincarca)
+- Refresh pt sumarul conversatie din data selectata
+- Selectarea unei date valide (in care exista mesaje) prin din calendar dupa ce este selectata o persoana
+- Functionalitatea butonului add events => adauga in calendarul telefonului/ cloud
+- Buton add events apasat din nou => eliminarea evenimentului adaugat anterior
+- Recunoaste corect evenimentele de tip date de nastere si le adauga ca evenimente all day in calendar dupa apasarea butonului add
+- Diferentiaza in mare parte corect evenimentele importante de intalnirile spontante/ ad-hoc care nu trebuie luate in calcul
+- Restructurare cod conform principiilor SOLID,KISS,DRY,etc
 
 Ce mai trb sa fac?
  BACKEND:
@@ -25,27 +35,17 @@ Ce mai trb sa fac?
  - nlp pt categorisirea persoanelor imlplicate in conversatie si securizare numelor si datelor confidentiale
  - asistentul inteligent pt intrebarile in legatura cu mesajele sumarizate
  - detectarea starilor persoanelor implicate in conversatie dintr o serie de categorii (optional)
+ - detectare locatie la detected events daca se trimite un link catre maps
 
  FRONTEND:
 - finisare UI si imbunatatiri
 - statistica pt mesaje
-- functia de unread Messages (citeste mesajele necitite si afiseaza in timp real o lista cu rezumatele)
-- fisarea importantei mesajului si detalii avansate
-- functionalitatea butonului calendar => popUp cu selectarea si validarea mesajelor din acea data, apoi afisare sumarizarii in modul
+- afisarea importantei mesajului si detalii avansate
 - functionalitatea butonului send => trimite catre asistentul AI mesajul si deschide o conv cu acesta despre mesajele sumarizate
-- functionalitaea modului detected events => afisarea corespunzatoare a listei de evenimente (fie in timp real pt mesajele necitite fie pt mesaje mai vechi de la advanced summary)
-- functionalitatea butonului add events => adauga in calendarul telefonului/ cloud
-- buton add events apasat din nou => eliminarea evenimentului adaugat anterior
+- discutia cu asistentul ai legata de o conversatie selectata (persoana + data)
+- discutia cu asistentul bazata pe toate conversatiile cu o persoana selectata
+- sa nu raspunda ai ul la alte intrebari care n-au legatura cu conversatia selectata sau cand nu are destule informatii
+- sa ofere raspunsuri concise, relevante si adevarate atunci cand poate gasi raspunsul
+- detected events da rateuri, mai trebuie antrenat
 - swipe right pt stergere/ dismiss event
 - functionalitatea butoanelor din Bottom Navigation Bar ( marcaje, home si setari)
-
- Bug-uri/ Imbunatatiri:
- - daca conectez la tel si dau run pe device se instaleaza app dar nu porneste, ci da timeout, totusi daca o deschid dupa din telefon merge
- - pe virtual device nu merge detect events, probabil ca nu are nici un calendar asignat
- - trebuie sa verific daca merge si pe ios
-
- Rezolvate:
- - header ul nu incape si apare cu "...", va trb sa fac fontul mai mic sau sa trec pe urmatorul rand automat
- - trb sa elimin campul time din detected events reprezentand doar ora locala, nefolositor, am nevoie de ora meetingului
- - cred ca ar fi mai util sa las doar un buton simplu in forma de cerc pt add to calendar, fara hintul aferent
-

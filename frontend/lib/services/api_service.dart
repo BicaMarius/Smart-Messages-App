@@ -1,5 +1,4 @@
 import 'dart:convert';
-import 'dart:io';
 import 'dart:async';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
@@ -216,78 +215,60 @@ class ApiService {
   //   summarizeMessages
   // =============================
   Future<Map<String, dynamic>> summarizeMessages(List<String> messages) async {
-    // 1) Încercăm localhost
-    final localIp = 'http://127.0.0.1:3000/api';
-    print('Se încearcă API-ul pe: $localIp/summarize');
-
+    final localIp = "192.168.0.199"; // Adresa IP a serverului local
+    
     try {
-      final response = await http
-          .post(
-            Uri.parse('$localIp/summarize'),
+      // Mai întâi încercăm pe localhost
+      print('Se încearcă API-ul pe: http://127.0.0.1:3000/api/summarize');
+    try {
+        final response = await http.post(
+          Uri.parse('http://127.0.0.1:3000/api/summarize'),
             headers: {'Content-Type': 'application/json'},
-            body: jsonEncode({
-              'messages': messages,
-              'language': 'ro',
-            }),
-          )
-          .timeout(const Duration(seconds: 3));
+          body: jsonEncode({'messages': messages}),
+        ).timeout(const Duration(seconds: 2));
 
       if (response.statusCode == 200) {
-        print('Sumarizare reușită de la localhost!');
         final data = jsonDecode(response.body);
-        if (data['summary'] == null || data['summary'].toString().trim().isEmpty) {
-          print('API localhost a returnat un sumar gol, încercăm IP salvat');
-        } else {
-          return data;
-        }
+          print('Sumarizare reușită de la API!');
+          return {
+            'summary': data['summary'] ?? 'Nu s-a putut genera rezumatul.',
+            'detectedEvents': data['events'] ?? []
+          };
       }
     } catch (e) {
       print('Localhost indisponibil: $e');
-      // Continuăm cu IP-ul salvat
     }
 
-    // 2) Încercăm IP-ul salvat
-    print('Se apelează API-ul de sumarizare la $_baseUrl/summarize');
+      // Apoi încercăm pe IP-ul local
+      print('Se apelează API-ul de sumarizare la http://$localIp:3000/api/summarize');
     print('Număr de mesaje trimise: ${messages.length}');
 
-    try {
-      final response = await http
-          .post(
-            Uri.parse('$_baseUrl/summarize'),
+      final response = await http.post(
+        Uri.parse('http://$localIp:3000/api/summarize'),
             headers: {'Content-Type': 'application/json'},
-            body: jsonEncode({
-              'messages': messages,
-              'language': 'ro',
-            }),
-          )
-          .timeout(Duration(seconds: _timeoutSeconds));
+        body: jsonEncode({'messages': messages}),
+      ).timeout(const Duration(seconds: 10));
 
       if (response.statusCode == 200) {
-        print('Sumarizare reușită de la API!');
         final data = jsonDecode(response.body);
-
-        if (data['summary'] == null || data['summary'].toString().trim().isEmpty) {
-          print('API a returnat un sumar gol, folosim sumarizare locală');
-          return _generateMockSummary(messages);
-        }
-
-        // Convertim eventurile în listă de map
-        if (data['detectedEvents'] != null && data['detectedEvents'] is List) {
-          final List<dynamic> eventsList = data['detectedEvents'];
-          final List<Map<String, dynamic>> formattedEvents = [];
-          for (final event in eventsList) {
-            if (event is Map<String, dynamic>) {
-              formattedEvents.add(event);
-            }
+        print('Sumarizare reușită de la API!');
+        
+        // Debug output
+        if (data['events'] != null) {
+          print('API a returnat ${data['events'].length} evenimente');
+          for (var event in data['events']) {
+            print('Event: ${event['title']} on ${event['dateTime']}');
           }
-          data['detectedEvents'] = formattedEvents;
         } else {
-          data['detectedEvents'] = [];
+          print('API nu a returnat evenimente');
         }
 
-        return data;
+        return {
+          'summary': data['summary'] ?? 'Nu s-a putut genera rezumatul.',
+          'detectedEvents': data['events'] ?? []
+        };
       } else {
-        print('Eroare API (${response.statusCode}): ${response.body}');
+        print('Eroare la API: ${response.statusCode}, ${response.body}');
         return _generateMockSummary(messages);
       }
     } catch (e) {
