@@ -2,11 +2,14 @@ import 'dart:convert';
 import 'dart:async';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:frontend/services/logger_service.dart';
 
 class ApiService {
   // Adresa IP a serverului backend - implicită, modificabilă ulterior
   static const int _timeoutSeconds = 10; 
-  static const String _defaultIp = '192.168.1.132'; // sau IP real
+  // static const String _defaultIp = '192.168.1.132'; // Wifi Bucuresti
+  // static const String _defaultIp = '192.168.0.199'; // Wifi Balș
+  static const String _defaultIp = '192.168.40.153'; // Hotspot Honor70
 
   // URL-ul de bază pentru apelarea backend-ului
   String _baseUrl = 'http://127.0.0.1:3000/api';
@@ -28,26 +31,26 @@ class ApiService {
       final savedIp = prefs.getString('server_ip');
       if (savedIp != null && savedIp.isNotEmpty) {
         updateServerIp(savedIp);
-        print('Am încărcat adresa IP salvată: $savedIp');
+        LoggerService.info('Am încărcat adresa IP salvată: $savedIp');
       } else {
         // Dacă nu există IP salvat, folosim IP-ul implicit
         updateServerIp(_defaultIp);
       }
     } catch (e) {
-      print('Eroare la încărcarea adresei IP: $e');
+      LoggerService.error('Eroare la încărcarea adresei IP: $e');
     }
   }
 
   Future<void> updateServerIp(String newIp) async {
     _baseUrl = 'http://$newIp:3000/api';
-    print('Adresa API actualizată: $_baseUrl');
+    LoggerService.info('Adresa API actualizată: $_baseUrl');
 
     // Salvăm adresa pentru sesiuni viitoare
     try {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString('server_ip', newIp);
     } catch (e) {
-      print('Eroare la salvarea adresei IP: $e');
+      LoggerService.error('Eroare la salvarea adresei IP: $e');
     }
   }
 
@@ -55,7 +58,7 @@ class ApiService {
   //   Fallback local: _generateMockSummary
   // ===================================
   Map<String, dynamic> _generateMockSummary(List<String> messages) {
-    print('Folosim sumarizare LOCALĂ pentru că serverul nu e disponibil');
+    LoggerService.info('Folosim sumarizare LOCALĂ pentru că serverul nu e disponibil');
 
     if (messages.isEmpty) {
       return {
@@ -137,7 +140,7 @@ class ApiService {
               'location': '',
               'eventType': 'Zi de naștere'
             });
-            print('Detectat ziua de naștere pentru $recipientPerson pe ${eventDate.day}/${eventDate.month}/${eventDate.year}');
+            LoggerService.info('Detectat ziua de naștere pentru $recipientPerson pe ${eventDate.day}/${eventDate.month}/${eventDate.year}');
           } else {
             // Căutăm mențiuni
             for (final otherMsg in messages) {
@@ -151,7 +154,7 @@ class ApiService {
                       'location': '',
                       'eventType': 'Zi de naștere'
                     });
-                    print('Detectat ziua de naștere pentru $person la ${eventDate.day}/${eventDate.month}/${eventDate.year}');
+                    LoggerService.info('Detectat ziua de naștere pentru $person la ${eventDate.day}/${eventDate.month}/${eventDate.year}');
                     break;
                   }
                 }
@@ -159,7 +162,7 @@ class ApiService {
             }
           }
         } catch (e) {
-          print('Eroare la procesarea evenimentului local: $e');
+          LoggerService.error('Eroare la procesarea evenimentului local: $e');
         }
       }
     }
@@ -200,7 +203,7 @@ class ApiService {
             'eventType': message.contains('zoom') || message.contains('Zoom') ? 'Ședință online' : 'Întâlnire'
           });
         } catch (e) {
-          print('Eroare la procesarea întâlnirii: $e');
+          LoggerService.error('Eroare la procesarea întâlnirii: $e');
         }
       }
     }
@@ -215,11 +218,11 @@ class ApiService {
   //   summarizeMessages
   // =============================
   Future<Map<String, dynamic>> summarizeMessages(List<String> messages) async {
-    final localIp = "192.168.0.199"; // Adresa IP a serverului local
+    final localIp = _defaultIp; // Adresa IP a serverului local
     
     try {
       // Mai întâi încercăm pe localhost
-      print('Se încearcă API-ul pe: http://127.0.0.1:3000/api/summarize');
+      LoggerService.debug('Se încearcă API-ul pe: http://127.0.0.1:3000/api/summarize');
     try {
         final response = await http.post(
           Uri.parse('http://127.0.0.1:3000/api/summarize'),
@@ -229,38 +232,38 @@ class ApiService {
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
-          print('Sumarizare reușită de la API!');
+          LoggerService.info('Sumarizare reușită de la API!');
           return {
             'summary': data['summary'] ?? 'Nu s-a putut genera rezumatul.',
             'detectedEvents': data['events'] ?? []
           };
       }
     } catch (e) {
-      print('Localhost indisponibil: $e');
+      LoggerService.info('Localhost indisponibil: $e');
     }
 
       // Apoi încercăm pe IP-ul local
-      print('Se apelează API-ul de sumarizare la http://$localIp:3000/api/summarize');
-    print('Număr de mesaje trimise: ${messages.length}');
+      LoggerService.debug('Se apelează API-ul de sumarizare la http://$localIp:3000/api/summarize');
+    LoggerService.info('Număr de mesaje trimise: ${messages.length}');
 
       final response = await http.post(
         Uri.parse('http://$localIp:3000/api/summarize'),
             headers: {'Content-Type': 'application/json'},
         body: jsonEncode({'messages': messages}),
-      ).timeout(const Duration(seconds: 10));
+      ).timeout(Duration(seconds: _timeoutSeconds));
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
-        print('Sumarizare reușită de la API!');
+        LoggerService.info('Sumarizare reușită de la API!');
         
         // Debug output
         if (data['events'] != null) {
-          print('API a returnat ${data['events'].length} evenimente');
+          LoggerService.info('API a returnat ${data['events'].length} evenimente');
           for (var event in data['events']) {
-            print('Event: ${event['title']} on ${event['dateTime']}');
+            LoggerService.info('Event: ${event['title']} on ${event['dateTime']}');
           }
         } else {
-          print('API nu a returnat evenimente');
+          LoggerService.info('API nu a returnat evenimente');
         }
 
         return {
@@ -268,11 +271,11 @@ class ApiService {
           'detectedEvents': data['events'] ?? []
         };
       } else {
-        print('Eroare la API: ${response.statusCode}, ${response.body}');
+        LoggerService.error('Eroare la API: ${response.statusCode}, ${response.body}');
         return _generateMockSummary(messages);
       }
     } catch (e) {
-      print('Excepție la apelarea API-ului: $e');
+      LoggerService.error('Excepție la apelarea API-ului: $e');
       return _generateMockSummary(messages);
     }
   }
@@ -315,11 +318,11 @@ class ApiService {
           return '';
         }
       } else {
-        print('askQuestionViaAI Error: ${response.statusCode}, ${response.body}');
+        LoggerService.error('askQuestionViaAI Error: ${response.statusCode}, ${response.body}');
         return '';
       }
     } catch (e) {
-      print('Exception in askQuestionViaAI: $e');
+      LoggerService.error('Exception in askQuestionViaAI: $e');
       return '';
     }
   }

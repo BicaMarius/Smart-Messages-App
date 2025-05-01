@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:timezone/timezone.dart' as tz;
 import 'package:timezone/data/latest.dart' as tz_data;
 import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:frontend/services/logger_service.dart';
 
 class CalendarService {
   final DeviceCalendarPlugin _calendarPlugin = DeviceCalendarPlugin();
@@ -31,7 +32,7 @@ class CalendarService {
       }
       return permissionsGranted.isSuccess && permissionsGranted.data!;
     } catch (e) {
-      print('Error requesting calendar permissions: $e');
+      LoggerService.error('Error requesting calendar permissions: $e');
       return false;
     }
   }
@@ -46,7 +47,7 @@ class CalendarService {
       final calendarsResult = await _calendarPlugin.retrieveCalendars();
       return calendarsResult.data ?? [];
     } catch (e) {
-      print('Error retrieving calendars: $e');
+      LoggerService.error('Error retrieving calendars: $e');
       return [];
     }
   }
@@ -114,13 +115,13 @@ class CalendarService {
         // Store the created event ID
         final eventId = createEventResult.data!;
         _addedEventIds[eventKey] = eventId;
-        print('Eveniment adăugat în calendar cu ID: $eventId');
+        LoggerService.info('Eveniment adăugat în calendar cu ID: $eventId');
         return eventId;
       }
       
       return null;
     } catch (e) {
-      print('Error creating calendar event: $e');
+      LoggerService.error('Error creating calendar event: $e');
       return null;
     }
   }
@@ -146,7 +147,7 @@ class CalendarService {
       final String? idToDelete = eventId ?? _addedEventIds[eventKey];
       
       if (idToDelete == null) {
-        print('Nu s-a găsit ID-ul evenimentului pentru ștergere');
+        LoggerService.error('Nu s-a găsit ID-ul evenimentului pentru ștergere');
         return false;
       }
       
@@ -159,7 +160,7 @@ class CalendarService {
           final deleteResult = await _calendarPlugin.deleteEvent(calendar.id!, idToDelete);
           
           if (deleteResult.isSuccess && deleteResult.data != null && deleteResult.data!) {
-            print('Eveniment șters cu succes din calendar: $idToDelete');
+            LoggerService.info('Eveniment șters cu succes din calendar: $idToDelete');
             // Remove the ID from our map
             _addedEventIds.remove(eventKey);
             return true;
@@ -169,7 +170,7 @@ class CalendarService {
       
       return false;
     } catch (e) {
-      print('Error removing calendar event: $e');
+      LoggerService.error('Error removing calendar event: $e');
       return false;
     }
   }
@@ -181,6 +182,7 @@ class CalendarService {
   ) async {
     // For web, show a dialog explaining that calendar integration isn't available
     if (kIsWeb) {
+      if (!context.mounted) return false;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Event would be added to calendar on a mobile device'),
@@ -192,6 +194,7 @@ class CalendarService {
     
     final hasPermissions = await requestPermissions();
     if (!hasPermissions) {
+      if (!context.mounted) return false;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Calendar permissions are required to add an event'),
@@ -202,6 +205,7 @@ class CalendarService {
     
     final calendars = await getCalendars();
     if (calendars.isEmpty) {
+      if (!context.mounted) return false;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('No calendars found on your device'),
@@ -217,6 +221,7 @@ class CalendarService {
     }
     
     // Show a dialog to select a calendar
+    if (!context.mounted) return false;
     final selectedCalendar = await showDialog<Calendar>(
       context: context,
       builder: (context) => AlertDialog(
@@ -253,6 +258,7 @@ class CalendarService {
   ) async {
     // For web, show a dialog explaining that calendar integration isn't available
     if (kIsWeb) {
+      if (!context.mounted) return false;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Event would be removed from calendar on a mobile device'),
@@ -264,6 +270,7 @@ class CalendarService {
     
     final hasPermissions = await requestPermissions();
     if (!hasPermissions) {
+      if (!context.mounted) return false;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Calendar permissions are required to remove an event'),
@@ -273,6 +280,7 @@ class CalendarService {
     }
     
     // Ask for confirmation
+    if (!context.mounted) return false;
     final shouldRemove = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
@@ -294,6 +302,7 @@ class CalendarService {
     if (shouldRemove == true) {
       final success = await removeEvent(eventDetails, null);
       
+      if (!context.mounted) return false;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(

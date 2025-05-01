@@ -1,37 +1,48 @@
 const openRouterService = require('../services/openRouterService');
 const eventDetectionService = require('../services/eventDetectionService');
+const logger = require('../services/loggerService');
 
 class ChatController {
   async summarize(req, res) {
     try {
       const { messages } = req.body;
-      console.log('Received request to summarize messages');
-      console.log('Number of messages:', messages.length);
-      console.log('First message:', messages[0]);
-      console.log('Last message:', messages[messages.length - 1]);
+      logger.info('Primit request pentru sumarizare mesaje');
+      logger.debug(`Număr mesaje: ${messages.length}`);
+      logger.debug(`Primul mesaj: ${messages[0]}`);
+      logger.debug(`Ultimul mesaj: ${messages[messages.length - 1]}`);
 
-      const aiResponse = await openRouterService.generateSummary(messages);
-      console.log('Generated response:', aiResponse);
+      // Generăm rezumatul
+      logger.ai('Inițializare generare rezumat...');
+      const summaryResponse = await openRouterService.generateSummary(messages);
+      logger.success('Rezumat generat cu succes');
+      logger.debug(`Rezumat generat: ${summaryResponse}`);
 
-      const { summary, events } = eventDetectionService.extractEvents(aiResponse);
+      // Detectăm evenimentele
+      logger.ai('Inițializare detectare evenimente...');
+      const eventsResponse = await openRouterService.detectEvents(messages);
+      logger.success('Evenimente detectate cu succes');
+      logger.debug(`Răspuns evenimente: ${eventsResponse}`);
 
-      // Debug: log detected events
+      // Procesăm evenimentele
+      const { events } = await eventDetectionService.extractEvents(eventsResponse);
+
+      // Logăm evenimentele detectate
       if (events.length > 0) {
-        console.log(`Detected ${events.length} events:`);
+        logger.event(`S-au detectat ${events.length} evenimente:`);
         events.forEach((event, index) => {
-          console.log(`${index + 1}. ${event.title}, date: ${event.dateTime}`);
+          logger.event(`${index + 1}. ${event.title}, data: ${event.dateTime}`);
         });
       } else {
-        console.log('No events detected');
+        logger.info('Nu s-au detectat evenimente');
       }
 
       res.json({ 
-        summary,
+        summary: summaryResponse.replace('sumarizare:', '').trim(),
         events
       });
     } catch (error) {
-      console.error('Error in summarize:', error);
-      throw error;
+      logger.error(`Eroare în funcția summarize: ${error.message}`);
+      res.status(500).json({ error: 'Eroare internă a serverului' });
     }
   }
 }

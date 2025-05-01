@@ -87,7 +87,7 @@ class AdvancedSummaryUI extends StatelessWidget {
             margin: const EdgeInsets.symmetric(vertical: 8),
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
             decoration: BoxDecoration(
-              color: platformColor.withOpacity(0.05),
+              color: platformColor.withAlpha(13),
               borderRadius: BorderRadius.circular(8),
             ),
             child: _buildFileList(),
@@ -159,7 +159,7 @@ class AdvancedSummaryUI extends StatelessWidget {
                   ),
                   style: OutlinedButton.styleFrom(
                     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                    side: BorderSide(color: platformColor.withOpacity(0.5)),
+                    side: BorderSide(color: platformColor.withAlpha(128)),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                   ),
                   onPressed: onDateSelected,
@@ -176,18 +176,18 @@ class AdvancedSummaryUI extends StatelessWidget {
       decoration: InputDecoration(
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(8),
-          borderSide: BorderSide(color: platformColor.withOpacity(0.5)),
+          borderSide: BorderSide(color: platformColor.withAlpha(128)),
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(8),
-          borderSide: BorderSide(color: platformColor.withOpacity(0.5)),
+          borderSide: BorderSide(color: platformColor.withAlpha(128)),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(8),
           borderSide: BorderSide(color: platformColor),
         ),
         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        prefixIcon: Icon(Icons.person, color: platformColor.withOpacity(0.7), size: 18),
+        prefixIcon: Icon(Icons.person, color: platformColor.withAlpha(179), size: 18),
       ),
       icon: Icon(Icons.arrow_drop_down, color: platformColor),
       hint: Text('Select a person', style: GoogleFonts.poppins(fontSize: 13)),
@@ -230,9 +230,9 @@ class AdvancedSummaryUI extends StatelessWidget {
           margin: const EdgeInsets.only(top: 8),
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: platformColor.withOpacity(0.05),
+            color: platformColor.withAlpha(13),
             borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: platformColor.withOpacity(0.2)),
+            border: Border.all(color: platformColor.withAlpha(51)),
           ),
           width: double.infinity,
           constraints: const BoxConstraints(minHeight: 100),

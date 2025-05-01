@@ -20,10 +20,10 @@ class DashboardSection extends StatelessWidget {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: platformColor.withOpacity(0.3), width: 1.5),
+        border: Border.all(color: platformColor.withAlpha(77), width: 1.5), // opacity 0.3
         boxShadow: [
           BoxShadow(
-            color: platformColor.withOpacity(0.1),
+            color: platformColor.withAlpha(26),
             spreadRadius: 1,
             blurRadius: 5,
             offset: const Offset(0, 2),
@@ -37,7 +37,7 @@ class DashboardSection extends StatelessWidget {
             width: double.infinity,
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             decoration: BoxDecoration(
-              color: platformColor.withOpacity(0.1),
+              color: platformColor.withAlpha(26), // opacity 0.1
               borderRadius: const BorderRadius.only(
                 topLeft: Radius.circular(14),
                 topRight: Radius.circular(14),
@@ -48,7 +48,7 @@ class DashboardSection extends StatelessWidget {
               style: GoogleFonts.poppins(
                 fontSize: 16,
                 fontWeight: FontWeight.bold,
-                color: platformColor.withOpacity(0.9),
+                color: platformColor.withAlpha(230), // opacity 0.9
               ),
             ),
           ),

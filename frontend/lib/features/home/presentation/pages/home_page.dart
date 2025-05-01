@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:frontend/services/api_service.dart';
 import 'package:frontend/services/calendar_service.dart';
+import 'package:frontend/services/logger_service.dart';
 import 'package:file_picker/file_picker.dart';
 import 'dart:io';
 import 'package:frontend/features/home/domain/models/social_media_platform.dart';
@@ -10,6 +11,7 @@ import 'package:frontend/features/home/presentation/widgets/home_widgets/advance
 import 'package:frontend/features/home/presentation/widgets/home_widgets/ask_me_ui.dart';
 import 'package:frontend/features/home/presentation/widgets/home_widgets/detected_events_ui.dart';
 import 'package:frontend/features/home/presentation/widgets/home_widgets/dashboard_section.dart';
+import 'package:frontend/services/storage_service.dart';
 
 class HomePage extends StatefulWidget {
   final Color platformColor;
@@ -43,8 +45,6 @@ class _HomePageState extends State<HomePage> {
     'WhatsApp': {},
     'Messenger': {},
   };
-
-  bool _isLoading = false;
 
   // =====================
   //  Avansat: fișiere, persoane, date, rezumat
@@ -125,15 +125,11 @@ class _HomePageState extends State<HomePage> {
 
   Future<void> _initializeApp() async {
     await _calendarService.requestPermissions();
-    await _loadSavedFiles();
+    await _loadSavedData();
     _fetchMessages();
   }
 
   Future<void> _fetchMessages() async {
-    setState(() {
-      _isLoading = true;
-    });
-
     try {
       _platformEvents = {
         'Instagram': [
@@ -173,16 +169,685 @@ class _HomePageState extends State<HomePage> {
         },
       };
     } catch (e) {
-      print('Error in _fetchMessages: $e');
+      LoggerService.error('Error in _fetchMessages: $e');
+    }
+  }
+
+  Future<void> _loadSavedData() async {
+    for (final platform in ['Instagram', 'WhatsApp', 'Messenger']) {
+      // Load saved files
+      final savedFiles = await storageService.loadFiles(platform);
+      setState(() {
+        _uploadedFilePathsByPlatform[platform] = savedFiles;
+      });
+
+      // Load saved conversations
+      final savedConversations = await storageService.loadConversations(platform);
+      if (savedConversations.isNotEmpty) {
+        setState(() {
+          _availablePeopleByPlatform[platform] = List<String>.from(savedConversations['people'] ?? []);
+          _personDatesByPlatform[platform] = Map<String, List<DateTime>>.from(savedConversations['dates'] ?? {});
+          _conversationMessagesByPlatform[platform] = Map<DateTime, List<String>>.from(savedConversations['messages'] ?? {});
+        });
+      }
+    }
+  }
+
+  Future<void> _savePlatformData(String platform) async {
+    // Save files
+    await storageService.saveFiles(platform, _uploadedFilePathsByPlatform[platform] ?? []);
+
+    // Save conversations
+    final conversations = {
+      'people': _availablePeopleByPlatform[platform],
+      'dates': _personDatesByPlatform[platform],
+      'messages': _conversationMessagesByPlatform[platform],
+    };
+    await storageService.saveConversations(platform, conversations);
+  }
+
+  Future<void> _deleteFile(String platform, String path) async {
+    setState(() {
+      _uploadedFilePathsByPlatform[platform]?.remove(path);
+      
+      // Remove associated conversations
+      final fileName = path.split('/').last;
+      final personName = fileName.contains('cu ') 
+        ? fileName.split('cu ').last.split('.').first.trim()
+        : null;
+      
+      if (personName != null) {
+        _availablePeopleByPlatform[platform]?.remove(personName);
+        _personDatesByPlatform[platform]?.remove(personName);
+        _selectedPersonByPlatform[platform] = null;
+        _selectedDateByPlatform[platform] = null;
+        _conversationSummaryByPlatform[platform] = null;
+      }
+    });
+
+    // Save updated data
+    await _savePlatformData(platform);
+
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('File deleted: ${path.split('/').last}'),
+        duration: const Duration(seconds: 2),
+      ),
+    );
+  }
+
+  Future<void> _parseFile(String path, String platform) async {
+    try {
+      setState(() {
+        _isSummarizing = true;
+      });
+
+      final file = File(path);
+      if (!await file.exists()) {
+        throw Exception('File does not exist');
+      }
+
+      String content = await file.readAsString();
+      String fileName = path.split('/').last;
+      
+      if (platform == 'WhatsApp' && (fileName.contains('WhatsApp') || content.contains('Mesajele și apelurile sunt criptate integral'))) {
+        await _parseWhatsAppConversation(content, platform, fileName);
+      } else if (platform == 'Instagram') {
+        String personName = 'Instagram Conversation';
+        if (fileName.contains('cu ')) {
+          personName = fileName.split('cu ').last.split('.').first.trim();
+        }
+        await _parseGenericConversation(content, platform, personName);
+      } else if (platform == 'Messenger') {
+        String personName = 'Messenger Conversation';
+        if (fileName.contains('cu ')) {
+          personName = fileName.split('cu ').last.split('.').first.trim();
+        }
+        await _parseGenericConversation(content, platform, personName);
+      } else {
+        String personName = 'Unknown Conversation';
+        if (fileName.contains('cu ')) {
+          personName = fileName.split('cu ').last.split('.').first.trim();
+        }
+        await _parseGenericConversation(content, platform, personName);
+      }
+      
+      // Save data after parsing
+      await _savePlatformData(platform);
+      
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Processed file: $fileName'),
+          backgroundColor: Theme.of(context).colorScheme.primary,
+          duration: const Duration(seconds: 2),
+        ),
+      );
+      
+    } catch (e) {
+      LoggerService.error('Error parsing file: $e');
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error parsing file: $e'),
+          duration: const Duration(seconds: 3),
+          backgroundColor: Colors.red,
+        ),
+      );
     } finally {
       setState(() {
-        _isLoading = false;
+        _isSummarizing = false;
+      });
+    }
+  }
+  
+  Future<void> _parseWhatsAppConversation(String content, String platform, String fileName) async {
+    String conversationName = 'WhatsApp Conversation';
+    if (fileName.contains('cu ')) {
+      conversationName = fileName.split('cu ').last.split('.').first.trim();
+    }
+    
+    List<String> lines = content.split('\n');
+    Map<DateTime, List<String>> messagesByDate = {};
+    
+    final whatsappPattern = RegExp(r'(\d{1,2})\.(\d{1,2})\.(\d{4}),\s+(\d{1,2}):(\d{2})\s+([ap])\.m\.\s+-\s+(.+?):\s+(.+)');
+    
+    for (String line in lines) {
+      if (line.trim().isEmpty) continue;
+      
+      if (line.contains("Mesajele și apelurile sunt criptate integral") ||
+          line.contains("locație în timp real") ||
+          line.contains("fișier atașat")) {
+        continue;
+      }
+      
+      var match = whatsappPattern.firstMatch(line);
+      if (match != null) {
+        int day = int.parse(match.group(1)!);
+        int month = int.parse(match.group(2)!);
+        int year = int.parse(match.group(3)!);
+        
+        DateTime messageDate = DateTime(year, month, day);
+        
+        // Store the complete message including date and time instead of just sender and message
+        // This preserves the original format for the AI to analyze
+        String fullMessage = line;
+        
+        if (!messagesByDate.containsKey(messageDate)) {
+          messagesByDate[messageDate] = [];
+        }
+        messagesByDate[messageDate]!.add(fullMessage);
+      }
+    }
+    
+    setState(() {
+      if (!_availablePeopleByPlatform[platform]!.contains(conversationName)) {
+        _availablePeopleByPlatform[platform]!.add(conversationName);
+      }
+      
+      if (!_personDatesByPlatform[platform]!.containsKey(conversationName)) {
+        _personDatesByPlatform[platform]![conversationName] = [];
+      }
+      
+      List<DateTime> availableDates = messagesByDate.keys.toList()..sort();
+      for (DateTime date in availableDates) {
+        if (!_personDatesByPlatform[platform]![conversationName]!.contains(date)) {
+          _personDatesByPlatform[platform]![conversationName]!.add(date);
+        }
+      }
+      
+      for (var entry in messagesByDate.entries) {
+        _conversationMessagesByPlatform[platform]![entry.key] = entry.value;
+      }
+    });
+  }
+  
+  Future<void> _parseGenericConversation(String content, String platform, String conversationName) async {
+    List<String> lines = content.split('\n');
+    final now = DateTime.now();
+    DateTime messageDate = DateTime(now.year, now.month, now.day);
+    
+    lines = lines.where((line) => line.trim().isNotEmpty).toList();
+    
+    if (lines.isEmpty) {
+      throw Exception('No valid content found in the file');
+    }
+    
+    setState(() {
+      if (!_availablePeopleByPlatform[platform]!.contains(conversationName)) {
+        _availablePeopleByPlatform[platform]!.add(conversationName);
+      }
+      
+      if (!_personDatesByPlatform[platform]!.containsKey(conversationName)) {
+        _personDatesByPlatform[platform]![conversationName] = [];
+      }
+      
+      if (!_personDatesByPlatform[platform]![conversationName]!.contains(messageDate)) {
+        _personDatesByPlatform[platform]![conversationName]!.add(messageDate);
+      }
+      
+      List<String> messages = [];
+      for (String line in lines) {
+        if (line.contains(':')) {
+          messages.add(line);
+        } else {
+          messages.add("Unknown: $line");
+        }
+      }
+      
+      _conversationMessagesByPlatform[platform]![messageDate] = messages;
+    });
+  }
+
+  void _showDatePicker(String platformName) {
+    final platformColor = SocialMediaPlatform.platforms[_currentPageIndex].iconColor;
+    final selectedPerson = _selectedPersonByPlatform[platformName];
+    
+    if (selectedPerson == null) return;
+    
+    final dates = _personDatesByPlatform[platformName]?[selectedPerson] ?? [];
+    if (dates.isEmpty) return;
+    
+    dates.sort();
+    final initialDate = _selectedDateByPlatform[platformName] ?? dates.first;
+    
+    if (!mounted) return;
+    showDialog(
+      context: context,
+      builder: (context) => Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                'Select Date',
+                style: GoogleFonts.poppins(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: platformColor,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Available dates for $selectedPerson',
+                style: GoogleFonts.poppins(
+                  fontSize: 13,
+                  color: Colors.grey.shade600,
+                ),
+              ),
+              const SizedBox(height: 16),
+              SizedBox(
+                height: 320,
+                child: CalendarDatePicker(
+                  initialDate: initialDate,
+                  firstDate: DateTime(2020),
+                  lastDate: DateTime(2026),
+                  onDateChanged: (date) {
+                    Navigator.pop(context);
+                    setState(() {
+                      _selectedDateByPlatform[platformName] = date;
+                      _conversationSummaryByPlatform[platformName] = null;
+                    });
+                    _generateSummary(platformName);
+                  },
+                  selectableDayPredicate: (day) {
+                    return dates.any((date) => 
+                      date.year == day.year && 
+                      date.month == day.month && 
+                      date.day == day.day
+                    );
+                  },
+                ),
+              ),
+              const SizedBox(height: 8),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(context),
+                    child: Text(
+                      'Cancel',
+                      style: GoogleFonts.poppins(color: Colors.grey.shade700),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _generateSummary(String platform) async {
+    final currentPlatform = SocialMediaPlatform.platforms[_currentPageIndex];
+    final platformColor = currentPlatform.iconColor;
+    final person = _selectedPersonByPlatform[platform];
+    final date = _selectedDateByPlatform[platform];
+    
+    if (person == null) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('Please select a person first'),
+          backgroundColor: platformColor,
+        ),
+      );
+      return;
+    }
+    
+    if (date == null) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('Please select a date for this conversation'),
+          backgroundColor: platformColor,
+        ),
+      );
+      return;
+    }
+    
+    setState(() {
+      _isSummarizing = true;
+      _conversationSummaryByPlatform[platform] = null;
+      
+      // Clear previous events for this platform when selecting new date
+      _platformEvents[platform] = [];
+      _eventAddedToCalendar[platform] = {};
+    });
+
+    try {
+      final messages = _conversationMessagesByPlatform[platform]?[date] ?? [];
+      if (messages.isEmpty) {
+        throw Exception('No messages found for $person on selected date.');
+      }
+      
+      // Debug: Print messages being sent to the API
+      LoggerService.debug('Sending ${messages.length} messages to API for summary:');
+      for (int i = 0; i < messages.length && i < 5; i++) {
+        LoggerService.debug('Message ${i+1}: ${messages[i]}');
+      }
+      if (messages.length > 5) {
+        LoggerService.debug('... and ${messages.length - 5} more messages');
+      }
+
+      final summaryData = await _apiService.summarizeMessages(messages);
+      setState(() {
+        _conversationSummaryByPlatform[platform] = summaryData['summary'];
+      });
+
+      final List<dynamic> eventsList = summaryData['detectedEvents'] ?? [];
+      LoggerService.info('Processing ${eventsList.length} events from API response');
+      
+      final List<EventDetails> detectedEvents = [];
+      
+      // Process events from API response - rely entirely on the AI
+      for (final e in eventsList) {
+        if (e is Map) {
+          try {
+            // Parse date correctly
+            final String dateTimeStr = e['dateTime'] ?? '';
+            DateTime eventDateTime;
+            
+            if (dateTimeStr.isNotEmpty) {
+              eventDateTime = DateTime.parse(dateTimeStr);
+              
+              // Adjust for timezone if needed
+              if (eventDateTime.isUtc) {
+                eventDateTime = eventDateTime.toLocal();
+              }
+              
+              final String title = e['title'] ?? 'Untitled Event';
+              final String location = e['location'] ?? '';
+              final bool isAllDay = e['isAllDay'] == true || 
+                                   title.toLowerCase().contains('ziua lui') ||
+                                   title.toLowerCase().contains('zi de naștere');
+                
+              // Skip ad-hoc meetings or casual encounters
+              final bool isAdHocMeeting = _isAdHocMeeting(title, location);
+              if (isAdHocMeeting) {
+                LoggerService.debug('Skipping ad-hoc event: $title');
+                continue;
+              }
+              
+              detectedEvents.add(EventDetails(
+                title: title,
+                dateTime: eventDateTime,
+                location: location,
+                isAllDay: isAllDay,
+              ));
+              LoggerService.info('Added event: $title on ${eventDateTime.toString()}, all-day: $isAllDay');
+            }
+          } catch (error) {
+            LoggerService.error('Error processing event: $error');
+          }
+        }
+      }
+
+      setState(() {
+        // Replace previous events with new ones for this platform
+        _platformEvents[platform] = detectedEvents;
+        _eventAddedToCalendar[platform] = {
+          for (int i = 0; i < detectedEvents.length; i++) i: false
+        };
+      });
+      
+      // Debug: print current state of events
+      LoggerService.debug('Current platform events:');
+      for (final platform in _platformEvents.keys) {
+        final events = _platformEvents[platform] ?? [];
+        LoggerService.debug('$platform: ${events.length} events');
+        for (final event in events) {
+          LoggerService.debug('- ${event.title} on ${event.dateTime}');
+        }
+      }
+      
+    } catch (error) {
+      LoggerService.error('Error in _generateSummary: $error');
+      setState(() {
+        _conversationSummaryByPlatform[platform] = 'Error generating summary: $error';
+      });
+    } finally {
+      setState(() {
+        _isSummarizing = false;
+      });
+    }
+  }
+  
+  // Helper method to identify ad-hoc meetings that should be filtered out
+  bool _isAdHocMeeting(String title, String location) {
+    final lowerTitle = title.toLowerCase();
+    
+    // Common patterns for ad-hoc meetings
+    final adHocIndicators = [
+      'întâlnire la',
+      'întâlnire informală',
+      'ne vedem la',
+      'sunt la',
+    ];
+    
+    for (final indicator in adHocIndicators) {
+      if (lowerTitle.contains(indicator)) {
+        return true;
+      }
+    }
+    
+    // Generic short meeting titles without specifics
+    if ((lowerTitle == 'întâlnire' || lowerTitle == 'meeting') &&
+        location.isEmpty) {
+      return true;
+    }
+    
+    return false;
+  }
+
+  void _askQuestion(String platformName, String question) {
+    _askControllers[platformName]!.clear();
+
+    final person = _selectedPersonByPlatform[platformName];
+    if (person == null) {
+      setState(() {
+        _askChatLogByPlatform[platformName]!.insert(0, 'AI: Select a person first!');
+      });
+      return;
+    }
+
+    setState(() {
+      _askChatLogByPlatform[platformName]!.insert(0, 'You: $question');
+    });
+
+    final selectedDate = _selectedDateByPlatform[platformName];
+    List<String> relevantMessages = [];
+    
+    if (selectedDate != null) {
+      relevantMessages = _conversationMessagesByPlatform[platformName]?[selectedDate] ?? [];
+    } else {
+      final dates = _personDatesByPlatform[platformName]?[person] ?? [];
+      for (final date in dates) {
+        final msgs = _conversationMessagesByPlatform[platformName]?[date] ?? [];
+        relevantMessages.addAll(msgs);
+      }
+    }
+
+    if (relevantMessages.isEmpty) {
+      setState(() {
+        _askChatLogByPlatform[platformName]!.insert(0, 'AI: No messages found for $person.'); 
+      });
+      return;
+    }
+
+    final limitedMessages = relevantMessages.take(40).join('\n');
+    final prompt = """
+    Ai următoarele mesaje între tine și $person:
+    $limitedMessages
+
+    Întrebare: $question
+    Răspunde concis în limba română. Dacă nu există suficiente informații, spune că nu ai destule date.
+    """;
+
+    _apiService.askQuestionViaAI(prompt).then((answer) {
+      if (answer.trim().isEmpty) {
+        setState(() {
+          _askChatLogByPlatform[platformName]!.insert(0, 'AI: Nu am destule informații pentru a răspunde.');
+        });
+      } else {
+        setState(() {
+          _askChatLogByPlatform[platformName]!.insert(0, 'AI: $answer');
+        });
+      }
+    }).catchError((err) {
+      LoggerService.error('Eroare la askQuestionViaAI: $err');
+      setState(() {
+        _askChatLogByPlatform[platformName]!.insert(0, 'AI: Eroare la căutarea răspunsului.');
+      });
+    });
+  }
+
+  Future<void> _toggleEventCalendar(String platform, int index, EventDetails event) async {
+    if (_eventAddedToCalendar[platform]?[index] == true) {
+      final success = await _calendarService.removeEventWithConfirmation(context, event);
+      if (success) {
+        setState(() {
+          _eventAddedToCalendar[platform]![index] = false;
+        });
+      }
+      return;
+    }
+
+    final success = await _calendarService.addEventWithCalendarSelection(context, event);
+    if (success) {
+      setState(() {
+        _eventAddedToCalendar[platform]![index] = true;
       });
     }
   }
 
-  Future<void> _loadSavedFiles() async {
-    // TODO: Implement file loading logic
+  void _nextPage() {
+    if (_currentPageIndex < SocialMediaPlatform.platforms.length - 1) {
+      _pageController.nextPage(
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeInOut,
+      );
+    }
+  }
+
+  void _previousPage() {
+    if (_currentPageIndex > 0) {
+      _pageController.previousPage(
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeInOut,
+      );
+    }
+  }
+
+  void _openFileManager(String platformName) {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: Text('$platformName Files', style: GoogleFonts.poppins(fontWeight: FontWeight.bold)),
+          content: SizedBox(
+            width: double.maxFinite,
+            child: ListView(
+              shrinkWrap: true,
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: ElevatedButton.icon(
+                        onPressed: () {
+                          Navigator.pop(context);
+                          _pickFile(platformName);
+                        },
+                        icon: const Icon(Icons.upload_file),
+                        label: const Text('Add new file'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.blue,
+                          foregroundColor: Colors.white,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                if (_uploadedFilePathsByPlatform[platformName]?.isNotEmpty == true)
+                  ..._uploadedFilePathsByPlatform[platformName]!.map((path) => ListTile(
+                        leading: Icon(Icons.insert_drive_file, color: Theme.of(context).colorScheme.primary),
+                        title: Text(path.split('/').last, style: GoogleFonts.poppins()),
+                        trailing: IconButton(
+                          icon: const Icon(Icons.delete, color: Colors.red),
+                          onPressed: () {
+                            Navigator.pop(context);
+                            _deleteFile(platformName, path);
+                          },
+                        ),
+                        onTap: () {
+                          Navigator.pop(context);
+                          _processUploadedFile(platformName, path);
+                        },
+                      )),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Close'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Future<void> _pickFile(String platformName) async {
+    try {
+      final result = await FilePicker.platform.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: ['txt', 'json', 'csv'],
+        allowMultiple: false,
+      );
+
+      if (result != null && result.files.isNotEmpty) {
+        final file = result.files.first;
+        setState(() {
+          _uploadedFilePathsByPlatform[platformName]!.add(file.path!);
+        });
+        await _parseFile(file.path!, platformName);
+
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('File ${file.name} uploaded for $platformName'),
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      }
+    } catch (e) {
+      LoggerService.error('Error picking file: $e');
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error picking file: $e'),
+          duration: const Duration(seconds: 2),
+        ),
+      );
+    }
+  }
+
+  void _processUploadedFile(String platform, String path) {
+    _parseFile(path, platform).then((_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('File opened: ${path.split('/').last}'),
+          duration: const Duration(seconds: 2),
+        ),
+      );
+    });
   }
 
   @override
@@ -319,619 +984,5 @@ class _HomePageState extends State<HomePage> {
         showUnselectedLabels: false,
       ),
     );
-  }
-
-  void _nextPage() {
-    if (_currentPageIndex < SocialMediaPlatform.platforms.length - 1) {
-      _pageController.nextPage(
-        duration: const Duration(milliseconds: 300),
-        curve: Curves.easeInOut,
-      );
-    }
-  }
-
-  void _previousPage() {
-    if (_currentPageIndex > 0) {
-      _pageController.previousPage(
-        duration: const Duration(milliseconds: 300),
-        curve: Curves.easeInOut,
-      );
-    }
-  }
-
-  void _openFileManager(String platformName) {
-    showDialog(
-      context: context,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          title: Text('$platformName Files', style: GoogleFonts.poppins(fontWeight: FontWeight.bold)),
-          content: SizedBox(
-            width: double.maxFinite,
-            child: ListView(
-              shrinkWrap: true,
-              children: [
-                Row(
-                  children: [
-                    Expanded(
-                      child: ElevatedButton.icon(
-                        onPressed: () {
-                          Navigator.pop(context);
-                          _pickFile(platformName);
-                        },
-                        icon: const Icon(Icons.upload_file),
-                        label: const Text('Add new file'),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.blue,
-                          foregroundColor: Colors.white,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 16),
-                if (_uploadedFilePathsByPlatform[platformName]?.isNotEmpty == true)
-                  ..._uploadedFilePathsByPlatform[platformName]!.map((path) => ListTile(
-                        leading: Icon(Icons.insert_drive_file, color: Theme.of(context).colorScheme.primary),
-                        title: Text(path.split('/').last, style: GoogleFonts.poppins()),
-                        trailing: IconButton(
-                          icon: const Icon(Icons.delete, color: Colors.red),
-                          onPressed: () {
-                            Navigator.pop(context);
-                            _deleteFile(platformName, path);
-                          },
-                        ),
-                        onTap: () {
-                          Navigator.pop(context);
-                          _processUploadedFile(platformName, path);
-                        },
-                      )),
-              ],
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Close'),
-            ),
-          ],
-        );
-      },
-    );
-  }
-
-  Future<void> _pickFile(String platformName) async {
-    try {
-      final result = await FilePicker.platform.pickFiles(
-        type: FileType.custom,
-        allowedExtensions: ['txt', 'json', 'csv'],
-        allowMultiple: false,
-      );
-
-      if (result != null && result.files.isNotEmpty) {
-        final file = result.files.first;
-        setState(() {
-          _uploadedFilePathsByPlatform[platformName]!.add(file.path!);
-        });
-        await _parseFile(file.path!, platformName);
-
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('File ${file.name} uploaded for $platformName'),
-            duration: const Duration(seconds: 2),
-          ),
-        );
-      }
-    } catch (e) {
-      print('Error picking file: $e');
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Error picking file: $e'),
-          duration: const Duration(seconds: 2),
-        ),
-      );
-    }
-  }
-
-  void _processUploadedFile(String platform, String path) {
-    _parseFile(path, platform).then((_) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('File opened: ${path.split('/').last}'),
-          duration: const Duration(seconds: 2),
-        ),
-      );
-    });
-  }
-
-  Future<void> _deleteFile(String platform, String path) async {
-    setState(() {
-      _uploadedFilePathsByPlatform[platform]?.remove(path);
-    });
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('File deleted: ${path.split('/').last}'),
-        duration: const Duration(seconds: 2),
-      ),
-    );
-  }
-
-  Future<void> _parseFile(String path, String platform) async {
-    try {
-      setState(() {
-        _isLoading = true;
-      });
-
-      final file = File(path);
-      if (!await file.exists()) {
-        throw Exception('File does not exist');
-      }
-
-      String content = await file.readAsString();
-      String fileName = path.split('/').last;
-      
-      if (platform == 'WhatsApp' && (fileName.contains('WhatsApp') || content.contains('Mesajele și apelurile sunt criptate integral'))) {
-        await _parseWhatsAppConversation(content, platform, fileName);
-      } else if (platform == 'Instagram') {
-        String personName = 'Instagram Conversation';
-        if (fileName.contains('cu ')) {
-          personName = fileName.split('cu ').last.split('.').first.trim();
-        }
-        await _parseGenericConversation(content, platform, personName);
-      } else if (platform == 'Messenger') {
-        String personName = 'Messenger Conversation';
-        if (fileName.contains('cu ')) {
-          personName = fileName.split('cu ').last.split('.').first.trim();
-        }
-        await _parseGenericConversation(content, platform, personName);
-      } else {
-        String personName = 'Unknown Conversation';
-        if (fileName.contains('cu ')) {
-          personName = fileName.split('cu ').last.split('.').first.trim();
-        }
-        await _parseGenericConversation(content, platform, personName);
-      }
-      
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Processed file: $fileName'),
-          backgroundColor: Theme.of(context).colorScheme.primary,
-          duration: const Duration(seconds: 2),
-        ),
-      );
-      
-    } catch (e) {
-      print('Error parsing file: $e');
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Error parsing file: $e'),
-          duration: const Duration(seconds: 3),
-          backgroundColor: Colors.red,
-        ),
-      );
-    } finally {
-      setState(() {
-        _isLoading = false;
-      });
-    }
-  }
-  
-  Future<void> _parseWhatsAppConversation(String content, String platform, String fileName) async {
-    String conversationName = 'WhatsApp Conversation';
-    if (fileName.contains('cu ')) {
-      conversationName = fileName.split('cu ').last.split('.').first.trim();
-    }
-    
-    List<String> lines = content.split('\n');
-    Map<DateTime, List<String>> messagesByDate = {};
-    
-    final whatsappPattern = RegExp(r'(\d{1,2})\.(\d{1,2})\.(\d{4}),\s+(\d{1,2}):(\d{2})\s+([ap])\.m\.\s+-\s+(.+?):\s+(.+)');
-    
-    for (String line in lines) {
-      if (line.trim().isEmpty) continue;
-      
-      if (line.contains("Mesajele și apelurile sunt criptate integral") ||
-          line.contains("locație în timp real") ||
-          line.contains("fișier atașat")) {
-        continue;
-      }
-      
-      var match = whatsappPattern.firstMatch(line);
-      if (match != null) {
-        int day = int.parse(match.group(1)!);
-        int month = int.parse(match.group(2)!);
-        int year = int.parse(match.group(3)!);
-        
-        DateTime messageDate = DateTime(year, month, day);
-        
-        // Store the complete message including date and time instead of just sender and message
-        // This preserves the original format for the AI to analyze
-        String fullMessage = line;
-        
-        if (!messagesByDate.containsKey(messageDate)) {
-          messagesByDate[messageDate] = [];
-        }
-        messagesByDate[messageDate]!.add(fullMessage);
-      }
-    }
-    
-    setState(() {
-      if (!_availablePeopleByPlatform[platform]!.contains(conversationName)) {
-        _availablePeopleByPlatform[platform]!.add(conversationName);
-      }
-      
-      if (!_personDatesByPlatform[platform]!.containsKey(conversationName)) {
-        _personDatesByPlatform[platform]![conversationName] = [];
-      }
-      
-      List<DateTime> availableDates = messagesByDate.keys.toList()..sort();
-      for (DateTime date in availableDates) {
-        if (!_personDatesByPlatform[platform]![conversationName]!.contains(date)) {
-          _personDatesByPlatform[platform]![conversationName]!.add(date);
-        }
-      }
-      
-      for (var entry in messagesByDate.entries) {
-        _conversationMessagesByPlatform[platform]![entry.key] = entry.value;
-      }
-    });
-  }
-  
-  Future<void> _parseGenericConversation(String content, String platform, String conversationName) async {
-    List<String> lines = content.split('\n');
-    final now = DateTime.now();
-    DateTime messageDate = DateTime(now.year, now.month, now.day);
-    
-    lines = lines.where((line) => line.trim().isNotEmpty).toList();
-    
-    if (lines.isEmpty) {
-      throw Exception('No valid content found in the file');
-    }
-    
-    setState(() {
-      if (!_availablePeopleByPlatform[platform]!.contains(conversationName)) {
-        _availablePeopleByPlatform[platform]!.add(conversationName);
-      }
-      
-      if (!_personDatesByPlatform[platform]!.containsKey(conversationName)) {
-        _personDatesByPlatform[platform]![conversationName] = [];
-      }
-      
-      if (!_personDatesByPlatform[platform]![conversationName]!.contains(messageDate)) {
-        _personDatesByPlatform[platform]![conversationName]!.add(messageDate);
-      }
-      
-      List<String> messages = [];
-      for (String line in lines) {
-        if (line.contains(':')) {
-          messages.add(line);
-        } else {
-          messages.add("Unknown: $line");
-        }
-      }
-      
-      _conversationMessagesByPlatform[platform]![messageDate] = messages;
-    });
-  }
-
-  void _showDatePicker(String platformName) {
-    final platformColor = SocialMediaPlatform.platforms[_currentPageIndex].iconColor;
-    final selectedPerson = _selectedPersonByPlatform[platformName];
-    
-    if (selectedPerson == null) return;
-    
-    final dates = _personDatesByPlatform[platformName]?[selectedPerson] ?? [];
-    if (dates.isEmpty) return;
-    
-    dates.sort();
-    final initialDate = _selectedDateByPlatform[platformName] ?? dates.first;
-    
-    showDialog(
-      context: context,
-      builder: (context) => Dialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                'Select Date',
-                style: GoogleFonts.poppins(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                  color: platformColor,
-                ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                'Available dates for $selectedPerson',
-                style: GoogleFonts.poppins(
-                  fontSize: 13,
-                  color: Colors.grey.shade600,
-                ),
-              ),
-              const SizedBox(height: 16),
-              SizedBox(
-                height: 320,
-                child: CalendarDatePicker(
-                  initialDate: initialDate,
-                  firstDate: DateTime(2020),
-                  lastDate: DateTime(2026),
-                  onDateChanged: (date) {
-                    Navigator.pop(context);
-                    setState(() {
-                      _selectedDateByPlatform[platformName] = date;
-                      _conversationSummaryByPlatform[platformName] = null;
-                    });
-                    _generateSummary(platformName);
-                  },
-                  selectableDayPredicate: (day) {
-                    return dates.any((date) => 
-                      date.year == day.year && 
-                      date.month == day.month && 
-                      date.day == day.day
-                    );
-                  },
-                ),
-              ),
-              const SizedBox(height: 8),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.end,
-                children: [
-                  TextButton(
-                    onPressed: () => Navigator.pop(context),
-                    child: Text(
-                      'Cancel',
-                      style: GoogleFonts.poppins(color: Colors.grey.shade700),
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Future<void> _generateSummary(String platform) async {
-    final currentPlatform = SocialMediaPlatform.platforms[_currentPageIndex];
-    final platformColor = currentPlatform.iconColor;
-    final person = _selectedPersonByPlatform[platform];
-    final date = _selectedDateByPlatform[platform];
-    
-    if (person == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: const Text('Please select a person first'),
-          backgroundColor: platformColor,
-        ),
-      );
-      return;
-    }
-    
-    if (date == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: const Text('Please select a date for this conversation'),
-          backgroundColor: platformColor,
-        ),
-      );
-      return;
-    }
-    
-    setState(() {
-      _isSummarizing = true;
-      _conversationSummaryByPlatform[platform] = null;
-      
-      // Clear previous events for this platform when selecting new date
-      _platformEvents[platform] = [];
-      _eventAddedToCalendar[platform] = {};
-    });
-
-    try {
-      final messages = _conversationMessagesByPlatform[platform]?[date] ?? [];
-      if (messages.isEmpty) {
-        throw Exception('No messages found for $person on selected date.');
-      }
-      
-      // Debug: Print messages being sent to the API
-      print('Sending ${messages.length} messages to API for summary:');
-      for (int i = 0; i < messages.length && i < 5; i++) {
-        print('Message ${i+1}: ${messages[i]}');
-      }
-      if (messages.length > 5) {
-        print('... and ${messages.length - 5} more messages');
-      }
-
-      final summaryData = await _apiService.summarizeMessages(messages);
-      setState(() {
-        _conversationSummaryByPlatform[platform] = summaryData['summary'];
-      });
-
-      final List<dynamic> eventsList = summaryData['detectedEvents'] ?? [];
-      print('Processing ${eventsList.length} events from API response');
-      
-      final List<EventDetails> detectedEvents = [];
-      
-      // Process events from API response - rely entirely on the AI
-      for (final e in eventsList) {
-        if (e is Map) {
-          try {
-            // Parse date correctly
-            final String dateTimeStr = e['dateTime'] ?? '';
-            DateTime eventDateTime;
-            
-            if (dateTimeStr.isNotEmpty) {
-              eventDateTime = DateTime.parse(dateTimeStr);
-              
-              // Adjust for timezone if needed
-              if (eventDateTime.isUtc) {
-                eventDateTime = eventDateTime.toLocal();
-              }
-              
-              final String title = e['title'] ?? 'Untitled Event';
-              final String location = e['location'] ?? '';
-              final bool isAllDay = e['isAllDay'] == true || 
-                                   title.toLowerCase().contains('ziua lui') ||
-                                   title.toLowerCase().contains('zi de naștere');
-                
-              // Skip ad-hoc meetings or casual encounters
-              final bool isAdHocMeeting = _isAdHocMeeting(title, location);
-              if (isAdHocMeeting) {
-                print('Skipping ad-hoc event: $title');
-                continue;
-              }
-              
-              detectedEvents.add(EventDetails(
-                title: title,
-                dateTime: eventDateTime,
-                location: location,
-                isAllDay: isAllDay,
-              ));
-              print('Added event: $title on ${eventDateTime.toString()}, all-day: $isAllDay');
-            }
-          } catch (error) {
-            print('Error processing event: $error');
-          }
-        }
-      }
-
-      setState(() {
-        // Replace previous events with new ones for this platform
-        _platformEvents[platform] = detectedEvents;
-        _eventAddedToCalendar[platform] = {
-          for (int i = 0; i < detectedEvents.length; i++) i: false
-        };
-      });
-      
-      // Debug: print current state of events
-      print('Current platform events:');
-      for (final platform in _platformEvents.keys) {
-        final events = _platformEvents[platform] ?? [];
-        print('$platform: ${events.length} events');
-        for (final event in events) {
-          print('- ${event.title} on ${event.dateTime}');
-        }
-      }
-      
-    } catch (error) {
-      print('Error in _generateSummary: $error');
-      setState(() {
-        _conversationSummaryByPlatform[platform] = 'Error generating summary: $error';
-      });
-    } finally {
-      setState(() {
-        _isSummarizing = false;
-      });
-    }
-  }
-  
-  // Helper method to identify ad-hoc meetings that should be filtered out
-  bool _isAdHocMeeting(String title, String location) {
-    final lowerTitle = title.toLowerCase();
-    
-    // Common patterns for ad-hoc meetings
-    final adHocIndicators = [
-      'întâlnire la',
-      'întâlnire informală',
-      'ne vedem la',
-      'sunt la',
-    ];
-    
-    for (final indicator in adHocIndicators) {
-      if (lowerTitle.contains(indicator)) {
-        return true;
-      }
-    }
-    
-    // Generic short meeting titles without specifics
-    if ((lowerTitle == 'întâlnire' || lowerTitle == 'meeting') &&
-        location.isEmpty) {
-      return true;
-    }
-    
-    return false;
-  }
-
-  void _askQuestion(String platformName, String question) {
-    _askControllers[platformName]!.clear();
-
-    final person = _selectedPersonByPlatform[platformName];
-    if (person == null) {
-      setState(() {
-        _askChatLogByPlatform[platformName]!.insert(0, 'AI: Select a person first!');
-      });
-      return;
-    }
-
-    setState(() {
-      _askChatLogByPlatform[platformName]!.insert(0, 'You: $question');
-    });
-
-    final selectedDate = _selectedDateByPlatform[platformName];
-    List<String> relevantMessages = [];
-    
-    if (selectedDate != null) {
-      relevantMessages = _conversationMessagesByPlatform[platformName]?[selectedDate] ?? [];
-    } else {
-      final dates = _personDatesByPlatform[platformName]?[person] ?? [];
-      for (final date in dates) {
-        final msgs = _conversationMessagesByPlatform[platformName]?[date] ?? [];
-        relevantMessages.addAll(msgs);
-      }
-    }
-
-    if (relevantMessages.isEmpty) {
-      setState(() {
-        _askChatLogByPlatform[platformName]!.insert(0, 'AI: No messages found for $person.'); 
-      });
-      return;
-    }
-
-    final limitedMessages = relevantMessages.take(40).join('\n');
-    final prompt = """
-    Ai următoarele mesaje între tine și $person:
-    $limitedMessages
-
-    Întrebare: $question
-    Răspunde concis în limba română. Dacă nu există suficiente informații, spune că nu ai destule date.
-    """;
-
-    _apiService.askQuestionViaAI(prompt).then((answer) {
-      if (answer.trim().isEmpty) {
-        setState(() {
-          _askChatLogByPlatform[platformName]!.insert(0, 'AI: Nu am destule informații pentru a răspunde.');
-        });
-      } else {
-        setState(() {
-          _askChatLogByPlatform[platformName]!.insert(0, 'AI: $answer');
-        });
-      }
-    }).catchError((err) {
-      print('Eroare la askQuestionViaAI: $err');
-      setState(() {
-        _askChatLogByPlatform[platformName]!.insert(0, 'AI: Eroare la căutarea răspunsului.');
-      });
-    });
-  }
-
-  Future<void> _toggleEventCalendar(String platform, int index, EventDetails event) async {
-    if (_eventAddedToCalendar[platform]?[index] == true) {
-      final success = await _calendarService.removeEventWithConfirmation(context, event);
-      if (success) {
-        setState(() {
-          _eventAddedToCalendar[platform]![index] = false;
-        });
-      }
-      return;
-    }
-
-    final success = await _calendarService.addEventWithCalendarSelection(context, event);
-    if (success) {
-      setState(() {
-        _eventAddedToCalendar[platform]![index] = true;
-      });
-    }
   }
 } 

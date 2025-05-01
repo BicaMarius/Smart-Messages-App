@@ -24,13 +24,6 @@ class DetectedEventsUI extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          'Detected Events for $platformName',
-          style: GoogleFonts.poppins(
-            fontWeight: FontWeight.w500,
-            fontSize: 16,
-          ),
-        ),
         const SizedBox(height: 8),
         if (events.isEmpty)
           Container(
@@ -60,8 +53,6 @@ class DetectedEventsUI extends StatelessWidget {
           itemCount: events.length,
           itemBuilder: (context, index) {
             final event = events[index];
-            final isAdded = eventAddedToCalendar[index] ?? false;
-
             return _buildEventItem(index, event);
           },
         ),
@@ -85,7 +76,7 @@ class DetectedEventsUI extends StatelessWidget {
         borderRadius: BorderRadius.circular(12),
         boxShadow: [
           BoxShadow(
-            color: Colors.grey.withOpacity(0.1),
+            color: Colors.grey.withAlpha(26),
             spreadRadius: 1,
             blurRadius: 3,
             offset: const Offset(0, 1),

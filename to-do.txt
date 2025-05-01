@@ -8,6 +8,10 @@ Ce am facut?
 - Am inlocuit modelul DeepSeek R1 cu DS R1 distill Qwens 32B si am obtinut rezultate mai bune si mai rapide de sumarizare
 - Am inlocuit modelul cu Llama 4 Scout si am obtinut rezultate mai bune si o intelegere mai buna a textului
 - Restructurare cod conform principiilor SOLID,KISS,DRY,etc
+- Am impartit promptul complex in sarcini/ prompturi : un apel pentru sumarizare si altul pentru detectare evenimente pentru a avea single responsibility
+- Am eliminat datele hardcodate/ regex/ magic strings din identificarea evenimentelor, acum e facut exclusiv pe logica AI-ului, avand caracter general
+- Am inlocuit mesajele de debug de tip print, cu logger, asa cum e si indicat
+- Am adaugat/ editat mesaje de debug pt server
 
  FRONTEND:
 - AppBar personalizat cu titlu centrat și iconițe la stânga/dreapta
@@ -25,12 +29,15 @@ Ce am facut?
 - Recunoaste corect evenimentele de tip date de nastere si le adauga ca evenimente all day in calendar dupa apasarea butonului add
 - Diferentiaza in mare parte corect evenimentele importante de intalnirile spontante/ ad-hoc care nu trebuie luate in calcul
 - Restructurare cod conform principiilor SOLID,KISS,DRY,etc
+- Am sters subtitlul de sub Detected Events, nu avea sens, pt ca stii deja in ce panel te alfi
+- Datele introduse prin add files acum sunt persistente (serviciu de stocare al datelor)
+- Am rezolvat bug-ul prin care atunci cand stergeai un fisier din conversation files inca puteai selecta acele conversatii pt a le rezuma
+- Am rezolvat toate warningurile codului
 
 Ce mai trb sa fac?
  BACKEND:
  - momentan folosim direct DeepSeek fara instructiuni prea clare, deci vom rafina modelul
  - fine tuning si antrenarea modelului folosit pt a genera sumarizari cat mai bune si eficiente
- - testarea modelului pe date concrete si imbunatatiri
  - nlp pt categorisirea importantei mesajelor si antrenare
  - nlp pt categorisirea persoanelor imlplicate in conversatie si securizare numelor si datelor confidentiale
  - asistentul inteligent pt intrebarile in legatura cu mesajele sumarizate
@@ -46,6 +53,5 @@ Ce mai trb sa fac?
 - discutia cu asistentul bazata pe toate conversatiile cu o persoana selectata
 - sa nu raspunda ai ul la alte intrebari care n-au legatura cu conversatia selectata sau cand nu are destule informatii
 - sa ofere raspunsuri concise, relevante si adevarate atunci cand poate gasi raspunsul
-- detected events da rateuri, mai trebuie antrenat
 - swipe right pt stergere/ dismiss event
 - functionalitatea butoanelor din Bottom Navigation Bar ( marcaje, home si setari)

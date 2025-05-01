@@ -36,7 +36,7 @@ class EventList extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  event.location ?? 'No location specified',
+                  event.location.isEmpty ? 'No location specified' : event.location,
                   style: Theme.of(context).textTheme.bodySmall,
                 ),
                 Text(

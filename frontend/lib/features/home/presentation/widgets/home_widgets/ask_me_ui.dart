@@ -44,7 +44,7 @@ class AskMeUI extends StatelessWidget {
             decoration: BoxDecoration(
               color: Colors.grey.shade100,
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: platformColor.withOpacity(0.5)),
+              border: Border.all(color: platformColor.withAlpha(128)),
             ),
             child: TextField(
               controller: controller,
@@ -89,7 +89,7 @@ class AskMeUI extends StatelessWidget {
       decoration: BoxDecoration(
         color: Colors.grey.shade50,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: platformColor.withOpacity(0.3)),
+        border: Border.all(color: platformColor.withAlpha(77)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,

@@ -31,7 +31,7 @@ class _HomeScreenState extends State<HomeScreen> {
           IconButton(
             icon: const Icon(Icons.settings),
             onPressed: () {
-              // TODO: Implement settings
+              // TO DO: Implement settings
             },
           ),
         ],
@@ -50,14 +50,14 @@ class _HomeScreenState extends State<HomeScreen> {
               PlatformSelector(
                 platforms: SocialMediaPlatform.platforms,
                 onPlatformSelected: (platform) {
-                  // TODO: Handle platform selection
+                  // TO DO: Handle platform selection
                 },
               ),
               Expanded(
                 child: EventList(
-                  events: const [], // TODO: Pass actual events
+                  events: const [], // TO DO: Pass actual events
                   onEventTap: (event) {
-                    // TODO: Handle event tap
+                    // TO DO: Handle event tap
                   },
                 ),
               ),

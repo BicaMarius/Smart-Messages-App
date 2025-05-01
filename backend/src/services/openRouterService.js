@@ -1,6 +1,8 @@
 const axios = require('axios');
 const config = require('../config/config');
-const { systemInstruction } = require('../config/prompts');
+const { summaryPrompt } = require('../config/summaryPrompt');
+const { eventDetectionPrompt } = require('../config/eventDetectionPrompt');
+const logger = require('./loggerService');
 
 class OpenRouterService {
   constructor() {
@@ -9,38 +11,61 @@ class OpenRouterService {
   }
 
   async generateSummary(messages) {
-    console.log('Making request to OpenRouter API...');
+    logger.ai('Inițializare generare rezumat...');
     
-    const response = await axios.post(
-      `${this.baseUrl}/chat/completions`,
-      {
-        model: config.openRouterApi.model,
-        messages: [
-          {
-            role: "system",
-            content: systemInstruction
-          },
-          {
-            role: "user",
-            content: messages.join('\n')
-          }
-        ],
-        temperature: config.openRouterApi.temperature,
-        max_tokens: config.openRouterApi.maxTokens
-      },
-      {
-        headers: {
-          'Authorization': `Bearer ${this.apiKey}`,
-          'HTTP-Referer': 'http://localhost:3000',
-          'Content-Type': 'application/json'
-        }
-      }
-    );
+    const response = await this._makeRequest(messages, summaryPrompt);
+    logger.success('Rezumat generat cu succes');
+    
+    return response;
+  }
 
-    console.log('OpenRouter API response received');
-    console.log('Response status:', response.status);
+  async detectEvents(messages) {
+    logger.ai('Inițializare detectare evenimente...');
     
-    return response.data.choices[0].message.content;
+    const response = await this._makeRequest(messages, eventDetectionPrompt);
+    logger.success('Evenimente detectate cu succes');
+    
+    return response;
+  }
+
+  async _makeRequest(messages, systemPrompt) {
+    try {
+      logger.debug(`Se face request către OpenRouter API...`);
+      logger.debug(`Număr mesaje procesate: ${messages.length}`);
+      
+      const response = await axios.post(
+        `${this.baseUrl}/chat/completions`,
+        {
+          model: config.openRouterApi.model,
+          messages: [
+            {
+              role: "system",
+              content: systemPrompt
+            },
+            {
+              role: "user",
+              content: messages.join('\n')
+            }
+          ],
+          temperature: config.openRouterApi.temperature,
+        },
+        {
+          headers: {
+            'Authorization': `Bearer ${this.apiKey}`,
+            'HTTP-Referer': 'http://localhost:3000',
+            'Content-Type': 'application/json'
+          }
+        }
+      );
+
+      logger.debug('Răspuns primit de la OpenRouter API');
+      logger.debug(`Status răspuns: ${response.status}`);
+      
+      return response.data.choices[0].message.content;
+    } catch (error) {
+      logger.error(`Eroare la apelul OpenRouter API: ${error.message}`);
+      throw error;
+    }
   }
 }
 
