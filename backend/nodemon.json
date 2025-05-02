@@ -1,6 +1,7 @@
 {
   "watch": ["src/**/*.js"],
   "ext": "js,json",
-  "ignore": ["src/**/*.test.js"],
-  "exec": "node src/server.js"
+  "ignore": ["src/**/*.test.js", "src/**/*.spec.js", "src/**/*.json"],
+  "exec": "node src/server.js",
+  "delay": "2500"
 } 

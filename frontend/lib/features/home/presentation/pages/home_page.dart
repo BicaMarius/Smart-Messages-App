@@ -688,7 +688,7 @@ class _HomePageState extends State<HomePage> {
     Răspunde concis în limba română. Dacă nu există suficiente informații, spune că nu ai destule date.
     """;
 
-    _apiService.askQuestionViaAI(prompt).then((answer) {
+    _apiService.askQuestion(relevantMessages.toList(), question).then((answer) {
       if (answer.trim().isEmpty) {
         setState(() {
           _askChatLogByPlatform[platformName]!.insert(0, 'AI: Nu am destule informații pentru a răspunde.');
@@ -699,7 +699,7 @@ class _HomePageState extends State<HomePage> {
         });
       }
     }).catchError((err) {
-      LoggerService.error('Eroare la askQuestionViaAI: $err');
+      LoggerService.error('Eroare la askQuestion: $err');
       setState(() {
         _askChatLogByPlatform[platformName]!.insert(0, 'AI: Eroare la căutarea răspunsului.');
       });
@@ -850,6 +850,54 @@ class _HomePageState extends State<HomePage> {
     });
   }
 
+  Widget _buildAskMeUI(String platform) {
+    return AskMeUI(
+      platformName: platform,
+      platformColor: widget.platformColor,
+      controller: _askControllers[platform]!,
+      chatLog: _askChatLogByPlatform[platform]!,
+      onQuestionSubmitted: (question) async {
+        final messages = _getMessagesForAsk(platform);
+        if (messages.isEmpty) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('No messages available for ${_selectedPersonByPlatform[platform]}'),
+              backgroundColor: Colors.red,
+            ),
+          );
+          return;
+        }
+
+        final answer = await _apiService.askQuestion(messages, question);
+        setState(() {
+          _askChatLogByPlatform[platform]!.add('Q: $question\nA: $answer');
+          _askControllers[platform]!.clear();
+        });
+      },
+      isDateSelected: _selectedDateByPlatform[platform] != null,
+    );
+  }
+
+  List<String> _getMessagesForAsk(String platform) {
+    final selectedPerson = _selectedPersonByPlatform[platform];
+    if (selectedPerson == null) return [];
+
+    final selectedDate = _selectedDateByPlatform[platform];
+    if (selectedDate != null) {
+      // Dacă avem o dată selectată, returnăm mesajele din acea dată
+      return _conversationMessagesByPlatform[platform]?[selectedDate] ?? [];
+    } else {
+      // Dacă nu avem o dată selectată, returnăm toate mesajele pentru acea persoană
+      final allMessages = <String>[];
+      for (final messages in _conversationMessagesByPlatform[platform]?.values ?? []) {
+        if (messages is List<String>) {
+          allMessages.addAll(messages);
+        }
+      }
+      return allMessages;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final platform = SocialMediaPlatform.platforms[_currentPageIndex];
@@ -942,13 +990,7 @@ class _HomePageState extends State<HomePage> {
                           DashboardSection(
                             title: 'Ask Me',
                             platformColor: currentPlatformColor,
-                            child: AskMeUI(
-                              platformName: currentPlatformName,
-                              platformColor: currentPlatformColor,
-                              controller: _askControllers[currentPlatformName]!,
-                              chatLog: _askChatLogByPlatform[currentPlatformName] ?? [],
-                              onQuestionSubmitted: (question) => _askQuestion(currentPlatformName, question),
-                            ),
+                            child: _buildAskMeUI(currentPlatformName),
                           ),
                           DashboardSection(
                             title: 'Detected Events',

@@ -9,7 +9,7 @@ class ApiService {
   static const int _timeoutSeconds = 10; 
   // static const String _defaultIp = '192.168.1.132'; // Wifi Bucuresti
   // static const String _defaultIp = '192.168.0.199'; // Wifi Balș
-  static const String _defaultIp = '192.168.40.153'; // Hotspot Honor70
+  static const String _defaultIp = '192.168.40.41'; // Hotspot Honor70
 
   // URL-ul de bază pentru apelarea backend-ului
   String _baseUrl = 'http://127.0.0.1:3000/api';
@@ -27,15 +27,15 @@ class ApiService {
   // =======================
   Future<void> _loadSavedIp() async {
     try {
+      // Forțăm folosirea IP-ului implicit
+      LoggerService.debug('Folosim IP-ul implicit: $_defaultIp');
+      _baseUrl = 'http://$_defaultIp:3000/api';
+      LoggerService.info('Adresa API actualizată: $_baseUrl');
+      
+      // Salvăm IP-ul implicit pentru sesiuni viitoare
       final prefs = await SharedPreferences.getInstance();
-      final savedIp = prefs.getString('server_ip');
-      if (savedIp != null && savedIp.isNotEmpty) {
-        updateServerIp(savedIp);
-        LoggerService.info('Am încărcat adresa IP salvată: $savedIp');
-      } else {
-        // Dacă nu există IP salvat, folosim IP-ul implicit
-        updateServerIp(_defaultIp);
-      }
+      await prefs.setString('server_ip', _defaultIp);
+      LoggerService.debug('IP salvat în SharedPreferences: $_defaultIp');
     } catch (e) {
       LoggerService.error('Eroare la încărcarea adresei IP: $e');
     }
@@ -49,6 +49,7 @@ class ApiService {
     try {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString('server_ip', newIp);
+      LoggerService.debug('IP salvat în SharedPreferences: $newIp');
     } catch (e) {
       LoggerService.error('Eroare la salvarea adresei IP: $e');
     }
@@ -100,117 +101,9 @@ class ApiService {
       summary = 'În această conversație, ${uniquePeople.join(' și ')} au schimbat ${messages.length} mesaje.';
     }
 
-    // Detectăm evenimente local
-    final List<Map<String, dynamic>> detectedEvents = [];
-
-    // Regexp pentru "La mulți ani"
-    final birthdayRegex = RegExp(
-      r'(\d{1,2})[\/\.\-](\d{1,2})[\/\.\-](\d{4}),\s+\d{1,2}:\d{2}\s+\-\s+([^:]+):\s+La\s+mulți\s+ani',
-      caseSensitive: false,
-    );
-    final birthdayMentionRegex = RegExp(r'zile?(\s+de)?\s+na[șs]tere', caseSensitive: false);
-
-    // Căutăm evenimente de tip "La mulți ani"
-    for (final message in messages) {
-      final match = birthdayRegex.firstMatch(message);
-      if (match != null) {
-        try {
-          final day = int.parse(match.group(1)!);
-          final month = int.parse(match.group(2)!) - 1;
-          final year = int.parse(match.group(3)!);
-          final senderPerson = match.group(4)!.trim().replaceAll('You', 'Eu');
-
-          // Găsim alți participanți
-          final List<String> peopleInConversation = messages
-              .where((msg) => msg.contains(':') && !msg.contains('Mesajele'))
-              .map((msg) {
-                final parts = msg.split('-');
-                return parts.length > 1 ? parts[1].split(':')[0].trim() : '';
-              })
-              .where((name) => name.isNotEmpty && name != 'You' && name != senderPerson)
-              .toSet()
-              .toList();
-
-          if (peopleInConversation.length == 1) {
-            final recipientPerson = peopleInConversation.first;
-            final eventDate = DateTime(year, month, day, 0, 0);
-            detectedEvents.add({
-              'title': 'Ziua de naștere a lui $recipientPerson',
-              'dateTime': eventDate.toIso8601String(),
-              'location': '',
-              'eventType': 'Zi de naștere'
-            });
-            LoggerService.info('Detectat ziua de naștere pentru $recipientPerson pe ${eventDate.day}/${eventDate.month}/${eventDate.year}');
-          } else {
-            // Căutăm mențiuni
-            for (final otherMsg in messages) {
-              if (otherMsg != message && birthdayMentionRegex.hasMatch(otherMsg)) {
-                for (final person in peopleInConversation) {
-                  if (otherMsg.contains(person)) {
-                    final eventDate = DateTime(year, month, day, 0, 0);
-                    detectedEvents.add({
-                      'title': 'Ziua de naștere a lui $person',
-                      'dateTime': eventDate.toIso8601String(),
-                      'location': '',
-                      'eventType': 'Zi de naștere'
-                    });
-                    LoggerService.info('Detectat ziua de naștere pentru $person la ${eventDate.day}/${eventDate.month}/${eventDate.year}');
-                    break;
-                  }
-                }
-              }
-            }
-          }
-        } catch (e) {
-          LoggerService.error('Eroare la procesarea evenimentului local: $e');
-        }
-      }
-    }
-
-    // Căutăm evenimente de tip întâlnire/ședință/zoom
-    final meetingRegex = RegExp(
-      r'(?:întâlnire|ședință|meeting|zoom|webinar).*?(la|on|în|at)\s+(\d{1,2})[\/\.\-](\d{1,2})(?:[\/\.\-](\d{4}))?(?:\s+(?:la|at)\s+(\d{1,2})(?::(\d{1,2}))?)?',
-      caseSensitive: false,
-    );
-    for (final message in messages) {
-      final match = meetingRegex.firstMatch(message);
-      if (match != null) {
-        try {
-          final day = int.parse(match.group(2)!);
-          final month = int.parse(match.group(3)!) - 1;
-          final yearStr = match.group(4);
-          final year = yearStr != null ? int.parse(yearStr) : DateTime.now().year;
-          int hour = 12, minute = 0;
-          if (match.group(5) != null) {
-            hour = int.parse(match.group(5)!);
-            if (match.group(6) != null) {
-              minute = int.parse(match.group(6)!);
-            }
-          }
-          final eventDate = DateTime(year, month, day, hour, minute);
-
-          // Extragem locația
-          String location = '';
-          final locationMatch = RegExp(r'(?:la|în|at)\s+([^.,]+)', caseSensitive: false).firstMatch(message);
-          if (locationMatch != null) {
-            location = locationMatch.group(1)!.trim();
-          }
-
-          detectedEvents.add({
-            'title': message.contains('zoom') || message.contains('Zoom') ? 'Ședință Zoom' : 'Întâlnire',
-            'dateTime': eventDate.toIso8601String(),
-            'location': location,
-            'eventType': message.contains('zoom') || message.contains('Zoom') ? 'Ședință online' : 'Întâlnire'
-          });
-        } catch (e) {
-          LoggerService.error('Eroare la procesarea întâlnirii: $e');
-        }
-      }
-    }
-
     return {
       'summary': summary,
-      'detectedEvents': detectedEvents
+      'detectedEvents': []
     };
   }
 
@@ -223,32 +116,48 @@ class ApiService {
     try {
       // Mai întâi încercăm pe localhost
       LoggerService.debug('Se încearcă API-ul pe: http://127.0.0.1:3000/api/summarize');
-    try {
+      try {
         final response = await http.post(
           Uri.parse('http://127.0.0.1:3000/api/summarize'),
-            headers: {'Content-Type': 'application/json'},
+          headers: {'Content-Type': 'application/json'},
           body: jsonEncode({'messages': messages}),
         ).timeout(const Duration(seconds: 2));
 
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
+        if (response.statusCode == 200) {
+          final data = jsonDecode(response.body);
           LoggerService.info('Sumarizare reușită de la API!');
+          
+          // Parse events from the response
+          final List<Map<String, dynamic>> events = [];
+          if (data['events'] != null) {
+            for (var event in data['events']) {
+              if (event['title'] != null && event['dateTime'] != null) {
+                events.add({
+                  'title': event['title'],
+                  'dateTime': event['dateTime'],
+                  'location': event['location'] ?? '',
+                  'eventType': event['eventType'] ?? 'Eveniment'
+                });
+              }
+            }
+          }
+
           return {
             'summary': data['summary'] ?? 'Nu s-a putut genera rezumatul.',
-            'detectedEvents': data['events'] ?? []
+            'detectedEvents': events
           };
+        }
+      } catch (e) {
+        LoggerService.info('Localhost indisponibil: $e');
       }
-    } catch (e) {
-      LoggerService.info('Localhost indisponibil: $e');
-    }
 
       // Apoi încercăm pe IP-ul local
       LoggerService.debug('Se apelează API-ul de sumarizare la http://$localIp:3000/api/summarize');
-    LoggerService.info('Număr de mesaje trimise: ${messages.length}');
+      LoggerService.info('Număr de mesaje trimise: ${messages.length}');
 
       final response = await http.post(
         Uri.parse('http://$localIp:3000/api/summarize'),
-            headers: {'Content-Type': 'application/json'},
+        headers: {'Content-Type': 'application/json'},
         body: jsonEncode({'messages': messages}),
       ).timeout(Duration(seconds: _timeoutSeconds));
 
@@ -256,19 +165,24 @@ class ApiService {
         final data = jsonDecode(response.body);
         LoggerService.info('Sumarizare reușită de la API!');
         
-        // Debug output
+        // Parse events from the response
+        final List<Map<String, dynamic>> events = [];
         if (data['events'] != null) {
-          LoggerService.info('API a returnat ${data['events'].length} evenimente');
           for (var event in data['events']) {
-            LoggerService.info('Event: ${event['title']} on ${event['dateTime']}');
+            if (event['title'] != null && event['dateTime'] != null) {
+              events.add({
+                'title': event['title'],
+                'dateTime': event['dateTime'],
+                'location': event['location'] ?? '',
+                'eventType': event['eventType'] ?? 'Eveniment'
+              });
+            }
           }
-        } else {
-          LoggerService.info('API nu a returnat evenimente');
         }
 
         return {
           'summary': data['summary'] ?? 'Nu s-a putut genera rezumatul.',
-          'detectedEvents': data['events'] ?? []
+          'detectedEvents': events
         };
       } else {
         LoggerService.error('Eroare la API: ${response.statusCode}, ${response.body}');
@@ -281,49 +195,33 @@ class ApiService {
   }
 
   // =============================
-  //   askQuestionViaAI (NOU)
+  //   askQuestion
   // =============================
-  Future<String> askQuestionViaAI(String prompt) async {
+  Future<String> askQuestion(List<String> messages, String question) async {
     try {
+      // Folosim direct IP-ul implicit pentru ask
+      final askUrl = 'http://$_defaultIp:3000/api/ask';
+      LoggerService.debug('Se apelează API-ul la $askUrl');
+
       final response = await http.post(
-        Uri.parse('https://openrouter.ai/api/v1/chat/completions'),
-        headers: {
-          'Content-Type': 'application/json',
-          // Aici trebuie să pui cheia ta reală
-          'Authorization': 'Bearer <API_KEY_TAU>'
-        },
+        Uri.parse(askUrl),
+        headers: {'Content-Type': 'application/json'},
         body: jsonEncode({
-          "model": "deepseek/deepseek-r1-distill-qwen-32b:free",
-          "messages": [
-            {
-              "role": "system",
-              "content": "Ești un asistent inteligent care răspunde la întrebări pe baza unor mesaje. Dacă nu ai destule informații, spune clar acest lucru. Răspunde în română."
-            },
-            {
-              "role": "user",
-              "content": prompt
-            }
-          ],
-          "temperature": 0.7,
-          "max_tokens": 800
+          'messages': messages,
+          'question': question
         }),
-      );
+      ).timeout(Duration(seconds: _timeoutSeconds));
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
-        if (data['choices'] != null && data['choices'].isNotEmpty) {
-          final aiResponse = data['choices'][0]['message']['content'] ?? '';
-          return aiResponse;
-        } else {
-          return '';
-        }
+        return data['answer'] ?? 'Nu s-a putut genera răspunsul.';
       } else {
-        LoggerService.error('askQuestionViaAI Error: ${response.statusCode}, ${response.body}');
-        return '';
+        LoggerService.error('Eroare la API: ${response.statusCode}, ${response.body}');
+        return 'Nu s-a putut genera răspunsul.';
       }
     } catch (e) {
-      LoggerService.error('Exception in askQuestionViaAI: $e');
-      return '';
+      LoggerService.error('Excepție la apelarea API-ului: $e');
+      return 'Nu s-a putut genera răspunsul.';
     }
   }
 }

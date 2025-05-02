@@ -13,7 +13,11 @@ module.exports = {
     },
     cors: {
         origin: '*',
-        methods: ['GET', 'POST'],
-        allowedHeaders: ['Content-Type']
+        methods: ['GET', 'POST', 'OPTIONS'],
+        allowedHeaders: ['Content-Type', 'Authorization', 'Accept', 'Origin', 'X-Requested-With'],
+        credentials: true,
+        maxAge: 86400, // Cache preflight requests for 24 hours
+        preflightContinue: false,
+        optionsSuccessStatus: 204
     }
 };

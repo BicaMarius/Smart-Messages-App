@@ -45,6 +45,32 @@ class ChatController {
       res.status(500).json({ error: 'Eroare internă a serverului' });
     }
   }
+
+  async askQuestion(req, res) {
+    try {
+      const { messages, question } = req.body;
+      logger.info('Primit request pentru întrebare');
+      logger.debug(`Întrebare: ${question}`);
+      logger.debug(`Număr mesaje: ${messages.length}`);
+      logger.debug(`IP client: ${req.ip}`);
+      logger.debug(`Headers: ${JSON.stringify(req.headers)}`);
+
+      // Generăm răspunsul
+      logger.ai('Inițializare generare răspuns...');
+      const response = await openRouterService.askQuestion(messages, question);
+      logger.success('Răspuns generat cu succes');
+      logger.debug(`Răspuns generat: ${response}`);
+
+      // Extragem răspunsul din formatul specificat
+      const answer = response.replace('răspuns:', '').trim();
+
+      res.json({ answer });
+    } catch (error) {
+      logger.error(`Eroare în funcția askQuestion: ${error.message}`);
+      logger.error(`Stack trace: ${error.stack}`);
+      res.status(500).json({ error: 'Eroare internă a serverului' });
+    }
+  }
 }
 
 module.exports = new ChatController(); 

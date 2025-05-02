@@ -2,6 +2,7 @@ const axios = require('axios');
 const config = require('../config/config');
 const { summaryPrompt } = require('../config/summaryPrompt');
 const { eventDetectionPrompt } = require('../config/eventDetectionPrompt');
+const { askPrompt } = require('../config/askPrompt');
 const logger = require('./loggerService');
 
 class OpenRouterService {
@@ -28,6 +29,12 @@ class OpenRouterService {
     return response;
   }
 
+  async askQuestion(messages, question) {
+    const context = messages.join('\n');
+    const prompt = `${askPrompt}\n\nContext:\n${context}\n\nÎntrebare: ${question}`;
+    return this._makeRequest([prompt], askPrompt);
+  }
+
   async _makeRequest(messages, systemPrompt) {
     try {
       logger.debug(`Se face request către OpenRouter API...`);
@@ -52,7 +59,7 @@ class OpenRouterService {
         {
           headers: {
             'Authorization': `Bearer ${this.apiKey}`,
-            'HTTP-Referer': 'http://localhost:3000',
+            'HTTP-Referer': '*',
             'Content-Type': 'application/json'
           }
         }

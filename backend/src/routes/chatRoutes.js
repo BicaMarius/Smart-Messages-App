@@ -11,4 +11,7 @@ router.get('/test', (req, res) => {
 // Summarize route
 router.post('/summarize', chatController.summarize);
 
+// Ask question route
+router.post('/ask', chatController.askQuestion);
+
 module.exports = router; 
