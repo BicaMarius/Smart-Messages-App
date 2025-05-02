@@ -8,6 +8,7 @@ class AskMeUI extends StatefulWidget {
   final List<String> chatLog;
   final Function(String) onQuestionSubmitted;
   final bool isDateSelected;
+  final Function(bool) onModeChanged;
 
   const AskMeUI({
     super.key,
@@ -17,49 +18,152 @@ class AskMeUI extends StatefulWidget {
     required this.chatLog,
     required this.onQuestionSubmitted,
     required this.isDateSelected,
+    required this.onModeChanged,
   });
 
   @override
   State<AskMeUI> createState() => _AskMeUIState();
 }
 
-class _AskMeUIState extends State<AskMeUI> {
+class _AskMeUIState extends State<AskMeUI> with SingleTickerProviderStateMixin {
   bool _isExpanded = false;
+  final FocusNode _focusNode = FocusNode();
+  bool _isLoading = false;
+  late AnimationController _loadingController;
+  late Animation<double> _loadingAnimation;
+
+  @override
+  void initState() {
+    super.initState();
+    _focusNode.addListener(() {
+      if (!_focusNode.hasFocus) {
+        // Hide keyboard when focus is lost
+        FocusScope.of(context).unfocus();
+      }
+    });
+
+    _loadingController = AnimationController(
+      duration: const Duration(milliseconds: 1500),
+      vsync: this,
+    )..repeat();
+
+    _loadingAnimation = Tween<double>(begin: 0, end: 1).animate(
+      CurvedAnimation(
+        parent: _loadingController,
+        curve: Curves.linear,
+      ),
+    );
+  }
+
+  @override
+  void dispose() {
+    _focusNode.dispose();
+    _loadingController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _handleQuestionSubmitted(String question) async {
+    if (_isLoading) return;
+
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      await widget.onQuestionSubmitted(question);
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: () {
+          // Hide keyboard when tapping anywhere
+          FocusScope.of(context).unfocus();
+        },
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
               'Ask me about this conversation',
               style: GoogleFonts.poppins(fontWeight: FontWeight.w500),
             ),
-            const SizedBox(width: 8),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              decoration: BoxDecoration(
-                color: widget.platformColor.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Text(
-                widget.isDateSelected ? 'Date Selected' : 'All Messages',
-                style: GoogleFonts.poppins(
-                  fontSize: 12,
-                  color: widget.platformColor,
-                  fontWeight: FontWeight.w500,
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                _buildModeButton(
+                  label: 'All Conversations',
+                  isSelected: !widget.isDateSelected,
+                  onTap: () {
+                    if (widget.isDateSelected) {
+                      widget.onModeChanged(false);
+                    }
+                  },
                 ),
-              ),
+                const SizedBox(width: 8),
+                _buildModeButton(
+                  label: 'Date Selected',
+                  isSelected: widget.isDateSelected,
+                  onTap: () {
+                    if (!widget.isDateSelected) {
+                      widget.onModeChanged(true);
+                    }
+                  },
+                ),
+              ],
             ),
+            const SizedBox(height: 8),
+            _buildQuestionInput(),
+            const SizedBox(height: 16),
+            if (widget.chatLog.isNotEmpty) _buildChatLog(),
           ],
         ),
-        const SizedBox(height: 8),
-        _buildQuestionInput(),
-        const SizedBox(height: 16),
-        if (widget.chatLog.isNotEmpty) _buildChatLog(),
-      ],
+      ),
+    );
+  }
+
+  Widget _buildModeButton({
+    required String label,
+    required bool isSelected,
+    required VoidCallback onTap,
+  }) {
+    return Expanded(
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(12),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+          decoration: BoxDecoration(
+            color: isSelected
+                ? widget.platformColor.withOpacity(0.1)
+                : Colors.grey.withOpacity(0.1),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: isSelected
+                  ? widget.platformColor
+                  : Colors.grey.withOpacity(0.3),
+            ),
+          ),
+          child: Center(
+            child: Text(
+              label,
+              style: GoogleFonts.poppins(
+                fontSize: 12,
+                color: isSelected ? widget.platformColor : Colors.grey,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ),
+        ),
+      ),
     );
   }
 
@@ -77,6 +181,8 @@ class _AskMeUIState extends State<AskMeUI> {
             ),
             child: TextField(
               controller: widget.controller,
+              focusNode: _focusNode,
+              enabled: !_isLoading,
               decoration: InputDecoration(
                 hintText: 'Type your question...',
                 border: InputBorder.none,
@@ -88,7 +194,7 @@ class _AskMeUIState extends State<AskMeUI> {
               style: GoogleFonts.poppins(fontSize: 13),
               onSubmitted: (value) {
                 if (value.trim().isNotEmpty) {
-                  widget.onQuestionSubmitted(value.trim());
+                  _handleQuestionSubmitted(value.trim());
                 }
               },
             ),
@@ -96,17 +202,29 @@ class _AskMeUIState extends State<AskMeUI> {
         ),
         const SizedBox(width: 8),
         ElevatedButton(
-          onPressed: () {
-            final text = widget.controller.text.trim();
-            if (text.isNotEmpty) {
-              widget.onQuestionSubmitted(text);
-            }
-          },
+          onPressed: _isLoading
+              ? null
+              : () {
+                  final text = widget.controller.text.trim();
+                  if (text.isNotEmpty) {
+                    _handleQuestionSubmitted(text);
+                  }
+                },
           style: ElevatedButton.styleFrom(
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
             backgroundColor: widget.platformColor,
           ),
-          child: const Icon(Icons.send, size: 18, color: Colors.white),
+          child: _isLoading
+              ? SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(
+                    value: _loadingAnimation.value,
+                    strokeWidth: 2,
+                    valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                  ),
+                )
+              : const Icon(Icons.send, size: 18, color: Colors.white),
         ),
       ],
     );

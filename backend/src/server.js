@@ -7,6 +7,7 @@ const config = require('./config/config');
 dotenv.config();
 
 const port = process.env.PORT || 3000;
+const ip = '192.168.40.153';
 
 // Debug messages
 console.log('\n🚀 Starting server...');
@@ -21,7 +22,7 @@ const server = app.listen(port, '0.0.0.0', () => {
   console.log('✅ Server started successfully');
   console.log(`📡 Listening on port ${port}`);
   console.log(`🔗 Server URL: http://localhost:${port}`);
-  console.log(`🌐 Server accessible at: http://192.168.40.41:${port}`);
+  console.log(`🌐 Server accessible at: ${ip}:${port}`);
   console.log('💻 Server is accessible from other devices on the network\n');
 });
 

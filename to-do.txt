@@ -12,6 +12,13 @@ Ce am facut?
 - Am eliminat datele hardcodate/ regex/ magic strings din identificarea evenimentelor, acum e facut exclusiv pe logica AI-ului, avand caracter general
 - Am inlocuit mesajele de debug de tip print, cu logger, asa cum e si indicat
 - Am adaugat/ editat mesaje de debug pt server
+- Logica pentru intrebari si raspunri legate de contextul dat
+- Poti pune intrebari atat in legatura cu toate conversatiile, cat si doar de la o data selectata
+- Poti face switch intre all conversations si selected data
+- Raspuns corect si concis pentru intrebarea pusa
+- Nu raspunde la intrebari care nu au legatura cu subiectul
+- Nu raspunde daca nu are destule informatii pt a nu da raspunsuri false
+- Poate intelege intrebare chiar daca are mici greseli de typing
 
  FRONTEND:
 - AppBar personalizat cu titlu centrat și iconițe la stânga/dreapta
@@ -33,25 +40,21 @@ Ce am facut?
 - Datele introduse prin add files acum sunt persistente (serviciu de stocare al datelor)
 - Am rezolvat bug-ul prin care atunci cand stergeai un fisier din conversation files inca puteai selecta acele conversatii pt a le rezuma
 - Am rezolvat toate warningurile codului
+- Sectiunea de ask me anything (ask about all conversations si ask about selected data)
+- Switch intre cele doua moduri de converstie prin UI sugestiv (este colorat cel selectat curent)
+- Design asemanator cu chat ul din ChatGpt/ Deepseek
+- Daca apesi in afara boxului de typing tastatura se inchide
 
 Ce mai trb sa fac?
  BACKEND:
- - momentan folosim direct DeepSeek fara instructiuni prea clare, deci vom rafina modelul
- - fine tuning si antrenarea modelului folosit pt a genera sumarizari cat mai bune si eficiente
- - nlp pt categorisirea importantei mesajelor si antrenare
- - nlp pt categorisirea persoanelor imlplicate in conversatie si securizare numelor si datelor confidentiale
- - asistentul inteligent pt intrebarile in legatura cu mesajele sumarizate
- - detectarea starilor persoanelor implicate in conversatie dintr o serie de categorii (optional)
- - detectare locatie la detected events daca se trimite un link catre maps
+ - *fine tuning si antrenarea modelului folosit pt a genera sumarizari cat mai bune si eficiente
+ - *nlp pt categorisirea importantei mesajelor si antrenare
+ - *nlp pt categorisirea persoanelor imlplicate in conversatie si securizare numelor si datelor confidentiale
+ - *detectarea starilor persoanelor implicate in conversatie dintr o serie de categorii (optional)
+ - *detectare locatie la detected events daca se trimite un link catre maps
 
  FRONTEND:
-- finisare UI si imbunatatiri
-- statistica pt mesaje
-- afisarea importantei mesajului si detalii avansate
-- functionalitatea butonului send => trimite catre asistentul AI mesajul si deschide o conv cu acesta despre mesajele sumarizate
-- discutia cu asistentul ai legata de o conversatie selectata (persoana + data)
-- discutia cu asistentul bazata pe toate conversatiile cu o persoana selectata
-- sa nu raspunda ai ul la alte intrebari care n-au legatura cu conversatia selectata sau cand nu are destule informatii
-- sa ofere raspunsuri concise, relevante si adevarate atunci cand poate gasi raspunsul
+- *statistica pt mesaje
+- *afisarea importantei mesajului si detalii avansate
 - swipe right pt stergere/ dismiss event
 - functionalitatea butoanelor din Bottom Navigation Bar ( marcaje, home si setari)

@@ -8,6 +8,9 @@ Instrucțiuni:
 4. Dacă întrebarea nu are legătură cu conversația, răspunde cu "Întrebarea ta nu are legătură cu conversația selectată"
 5. Menționează data și ora mesajelor relevante când este posibil
 6. Răspunsurile trebuie să fie concise și directe
+7. Înțelege și răspunde la întrebări chiar dacă sunt formulate cu greșeli gramaticale sau cuvinte scrise greșit
+8. Corectează automat greșelile din întrebare și răspunde la versiunea corectă
+9. Dacă întrebarea este ambiguă, clarifică în răspuns ce anume ai înțeles din întrebare
 
 Format răspuns:
 răspuns: [răspunsul tău]`;

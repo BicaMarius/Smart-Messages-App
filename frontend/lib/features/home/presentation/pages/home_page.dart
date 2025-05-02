@@ -875,6 +875,17 @@ class _HomePageState extends State<HomePage> {
         });
       },
       isDateSelected: _selectedDateByPlatform[platform] != null,
+      onModeChanged: (isDateSelected) {
+        setState(() {
+          if (isDateSelected) {
+            // If switching to date selected mode, show date picker
+            _showDatePicker(platform);
+          } else {
+            // If switching to all conversations mode, clear the selected date
+            _selectedDateByPlatform[platform] = null;
+          }
+        });
+      },
     );
   }
 

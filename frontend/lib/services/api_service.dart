@@ -9,7 +9,7 @@ class ApiService {
   static const int _timeoutSeconds = 10; 
   // static const String _defaultIp = '192.168.1.132'; // Wifi Bucuresti
   // static const String _defaultIp = '192.168.0.199'; // Wifi Balș
-  static const String _defaultIp = '192.168.40.41'; // Hotspot Honor70
+  static const String _defaultIp = '192.168.40.153'; // Hotspot Honor70
 
   // URL-ul de bază pentru apelarea backend-ului
   String _baseUrl = 'http://127.0.0.1:3000/api';
