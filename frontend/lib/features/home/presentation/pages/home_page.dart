@@ -29,7 +29,7 @@ class _HomePageState extends State<HomePage> {
   final ApiService _apiService = ApiService();
   final CalendarService _calendarService = CalendarService();
 
-  final PageController _pageController = PageController(initialPage: 0);
+  late PageController _pageController;
   int _currentPageIndex = 0;
 
   /// Evenimente detectate pe platformă
@@ -111,6 +111,7 @@ class _HomePageState extends State<HomePage> {
   @override
   void initState() {
     super.initState();
+    _pageController = PageController(initialPage: 0);
     _initializeApp();
   }
 
@@ -251,6 +252,23 @@ class _HomePageState extends State<HomePage> {
       String content = await file.readAsString();
       String fileName = path.split('/').last;
       
+      LoggerService.debug('=== Starting file parsing ===');
+      LoggerService.debug('File: $fileName');
+      LoggerService.debug('Platform: $platform');
+      
+      // Clear previous data for this platform
+      setState(() {
+        _availablePeopleByPlatform[platform] = [];
+        _personDatesByPlatform[platform] = {};
+        _conversationMessagesByPlatform[platform] = {};
+        _selectedPersonByPlatform[platform] = null;
+        _selectedDateByPlatform[platform] = null;
+        _conversationSummaryByPlatform[platform] = null;
+      });
+      
+      // Clear data from SharedPreferences
+      await storageService.clearPlatformData(platform);
+      
       if (platform == 'WhatsApp' && (fileName.contains('WhatsApp') || content.contains('Mesajele și apelurile sunt criptate integral'))) {
         await _parseWhatsAppConversation(content, platform, fileName);
       } else if (platform == 'Instagram') {
@@ -275,6 +293,11 @@ class _HomePageState extends State<HomePage> {
       
       // Save data after parsing
       await _savePlatformData(platform);
+      
+      LoggerService.debug('=== File parsing completed ===');
+      LoggerService.debug('Available people: ${_availablePeopleByPlatform[platform]}');
+      LoggerService.debug('Dates by person: ${_personDatesByPlatform[platform]}');
+      LoggerService.debug('Messages by date: ${_conversationMessagesByPlatform[platform]}');
       
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -662,33 +685,52 @@ class _HomePageState extends State<HomePage> {
     final selectedDate = _selectedDateByPlatform[platformName];
     List<String> relevantMessages = [];
     
+    LoggerService.debug('=== Starting question processing ===');
+    LoggerService.debug('Platform: $platformName');
+    LoggerService.debug('Selected Person: $person');
+    LoggerService.debug('Selected Date: ${selectedDate?.toString() ?? "All dates"}');
+    
     if (selectedDate != null) {
+      // If a date is selected, only get messages from that date for the selected person
       relevantMessages = _conversationMessagesByPlatform[platformName]?[selectedDate] ?? [];
+      LoggerService.debug('Mode: Specific Date');
+      LoggerService.debug('Messages for selected date: ${relevantMessages.length}');
     } else {
+      // If no date is selected, get all messages for the selected person from all dates
       final dates = _personDatesByPlatform[platformName]?[person] ?? [];
+      LoggerService.debug('Mode: All Conversations');
+      LoggerService.debug('Available dates for person: ${dates.length}');
+      
       for (final date in dates) {
         final msgs = _conversationMessagesByPlatform[platformName]?[date] ?? [];
+        LoggerService.debug('Messages for date ${date.toString()}: ${msgs.length}');
         relevantMessages.addAll(msgs);
       }
     }
 
     if (relevantMessages.isEmpty) {
+      LoggerService.debug('No messages found for the selected criteria');
       setState(() {
         _askChatLogByPlatform[platformName]!.insert(0, 'AI: No messages found for $person.'); 
       });
       return;
     }
 
-    final limitedMessages = relevantMessages.take(40).join('\n');
-    final prompt = """
-    Ai următoarele mesaje între tine și $person:
-    $limitedMessages
+    LoggerService.debug('Total messages to be sent: ${relevantMessages.length}');
+    if (relevantMessages.isNotEmpty) {
+      LoggerService.debug('First message: ${relevantMessages.first}');
+      LoggerService.debug('Last message: ${relevantMessages.last}');
+    }
 
-    Întrebare: $question
-    Răspunde concis în limba română. Dacă nu există suficiente informații, spune că nu ai destule date.
-    """;
+    final limitedMessages = relevantMessages.join('\n');
+    LoggerService.debug('=== Sending to AI ===');
+    LoggerService.debug('Question: $question');
+    LoggerService.debug('Messages length: ${limitedMessages.length} characters');
 
     _apiService.askQuestion(relevantMessages.toList(), question).then((answer) {
+      LoggerService.debug('=== AI Response ===');
+      LoggerService.debug('Answer: $answer');
+      
       if (answer.trim().isEmpty) {
         setState(() {
           _askChatLogByPlatform[platformName]!.insert(0, 'AI: Nu am destule informații pentru a răspunde.');
@@ -851,9 +893,10 @@ class _HomePageState extends State<HomePage> {
   }
 
   Widget _buildAskMeUI(String platform) {
+    final currentPlatform = SocialMediaPlatform.platforms[_currentPageIndex];
     return AskMeUI(
       platformName: platform,
-      platformColor: widget.platformColor,
+      platformColor: currentPlatform.iconColor,
       controller: _askControllers[platform]!,
       chatLog: _askChatLogByPlatform[platform]!,
       onQuestionSubmitted: (question) async {
@@ -878,10 +921,8 @@ class _HomePageState extends State<HomePage> {
       onModeChanged: (isDateSelected) {
         setState(() {
           if (isDateSelected) {
-            // If switching to date selected mode, show date picker
             _showDatePicker(platform);
           } else {
-            // If switching to all conversations mode, clear the selected date
             _selectedDateByPlatform[platform] = null;
           }
         });
@@ -913,14 +954,15 @@ class _HomePageState extends State<HomePage> {
   Widget build(BuildContext context) {
     final platform = SocialMediaPlatform.platforms[_currentPageIndex];
     final platformName = platform.name;
-    
+    final platformColor = platform.iconColor;
+
     return Scaffold(
       backgroundColor: const Color(0xFFE9ECF1),
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
         leading: IconButton(
-          icon: Icon(Icons.arrow_back_ios, color: platform.iconColor),
+          icon: Icon(Icons.arrow_back_ios, color: platformColor),
           onPressed: _previousPage,
         ),
         centerTitle: true,
@@ -929,14 +971,14 @@ class _HomePageState extends State<HomePage> {
           children: [
             Icon(
               platform.icon,
-              color: platform.iconColor,
+              color: platformColor,
               size: 24,
             ),
             const SizedBox(width: 8),
             Text(
               platformName,
               style: GoogleFonts.poppins(
-                color: platform.iconColor,
+                color: platformColor,
                 fontWeight: FontWeight.bold,
                 fontSize: 18,
               ),
@@ -945,7 +987,7 @@ class _HomePageState extends State<HomePage> {
         ),
         actions: [
           IconButton(
-            icon: Icon(Icons.arrow_forward_ios, color: platform.iconColor),
+            icon: Icon(Icons.arrow_forward_ios, color: platformColor),
             onPressed: _nextPage,
           ),
         ],
@@ -1031,7 +1073,7 @@ class _HomePageState extends State<HomePage> {
           BottomNavigationBarItem(icon: Icon(Icons.home), label: ''),
           BottomNavigationBarItem(icon: Icon(Icons.settings), label: ''),
         ],
-        selectedItemColor: Theme.of(context).colorScheme.primary,
+        selectedItemColor: platformColor,
         unselectedItemColor: Colors.grey,
         showSelectedLabels: false,
         showUnselectedLabels: false,

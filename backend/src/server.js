@@ -7,7 +7,7 @@ const config = require('./config/config');
 dotenv.config();
 
 const port = process.env.PORT || 3000;
-const ip = '192.168.40.153';
+const ip = '192.168.135.108';
 
 // Debug messages
 console.log('\n🚀 Starting server...');

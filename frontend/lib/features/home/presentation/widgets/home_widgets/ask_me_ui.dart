@@ -26,7 +26,6 @@ class AskMeUI extends StatefulWidget {
 }
 
 class _AskMeUIState extends State<AskMeUI> with SingleTickerProviderStateMixin {
-  bool _isExpanded = false;
   final FocusNode _focusNode = FocusNode();
   bool _isLoading = false;
   late AnimationController _loadingController;
@@ -37,7 +36,6 @@ class _AskMeUIState extends State<AskMeUI> with SingleTickerProviderStateMixin {
     super.initState();
     _focusNode.addListener(() {
       if (!_focusNode.hasFocus) {
-        // Hide keyboard when focus is lost
         FocusScope.of(context).unfocus();
       }
     });
@@ -82,50 +80,51 @@ class _AskMeUIState extends State<AskMeUI> with SingleTickerProviderStateMixin {
 
   @override
   Widget build(BuildContext context) {
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: () {
-          // Hide keyboard when tapping anywhere
-          FocusScope.of(context).unfocus();
-        },
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Ask me about this conversation',
-              style: GoogleFonts.poppins(fontWeight: FontWeight.w500),
+    return GestureDetector(
+      behavior: HitTestBehavior.translucent,
+      onTap: () {
+        // Dismiss keyboard when tapping anywhere outside the text field
+        FocusScope.of(context).unfocus();
+      },
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Ask me about this conversation',
+            style: GoogleFonts.poppins(
+              fontWeight: FontWeight.w500,
+              color: widget.platformColor,
             ),
-            const SizedBox(height: 8),
-            Row(
-              children: [
-                _buildModeButton(
-                  label: 'All Conversations',
-                  isSelected: !widget.isDateSelected,
-                  onTap: () {
-                    if (widget.isDateSelected) {
-                      widget.onModeChanged(false);
-                    }
-                  },
-                ),
-                const SizedBox(width: 8),
-                _buildModeButton(
-                  label: 'Date Selected',
-                  isSelected: widget.isDateSelected,
-                  onTap: () {
-                    if (!widget.isDateSelected) {
-                      widget.onModeChanged(true);
-                    }
-                  },
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            _buildQuestionInput(),
-            const SizedBox(height: 16),
-            if (widget.chatLog.isNotEmpty) _buildChatLog(),
-          ],
-        ),
+          ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              _buildModeButton(
+                label: 'All Conversations',
+                isSelected: !widget.isDateSelected,
+                onTap: () {
+                  if (widget.isDateSelected) {
+                    widget.onModeChanged(false);
+                  }
+                },
+              ),
+              const SizedBox(width: 8),
+              _buildModeButton(
+                label: 'Date Selected',
+                isSelected: widget.isDateSelected,
+                onTap: () {
+                  if (!widget.isDateSelected) {
+                    widget.onModeChanged(true);
+                  }
+                },
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          _buildQuestionInput(),
+          const SizedBox(height: 16),
+          if (widget.chatLog.isNotEmpty) _buildChatLog(),
+        ],
       ),
     );
   }
@@ -213,6 +212,7 @@ class _AskMeUIState extends State<AskMeUI> with SingleTickerProviderStateMixin {
           style: ElevatedButton.styleFrom(
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
             backgroundColor: widget.platformColor,
+            foregroundColor: Colors.white,
           ),
           child: _isLoading
               ? SizedBox(
@@ -241,76 +241,46 @@ class _AskMeUIState extends State<AskMeUI> with SingleTickerProviderStateMixin {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                'Conversation History',
-                style: GoogleFonts.poppins(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-              IconButton(
-                icon: Icon(
-                  _isExpanded ? Icons.expand_less : Icons.expand_more,
-                  color: widget.platformColor,
-                ),
-                onPressed: () {
-                  setState(() {
-                    _isExpanded = !_isExpanded;
-                  });
-                },
-              ),
-            ],
+          Text(
+            'Conversation History',
+            style: GoogleFonts.poppins(
+              fontSize: 14,
+              fontWeight: FontWeight.w500,
+              color: widget.platformColor,
+            ),
           ),
-          if (_isExpanded)
-            Container(
-              height: 300,
-              padding: const EdgeInsets.symmetric(vertical: 8),
-              child: ListView.builder(
-                itemCount: widget.chatLog.length,
-                itemBuilder: (context, index) {
-                  final message = widget.chatLog[widget.chatLog.length - 1 - index];
-                  return Padding(
-                    padding: const EdgeInsets.only(bottom: 8),
-                    child: Container(
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: index % 2 == 0
-                            ? widget.platformColor.withOpacity(0.1)
-                            : Colors.white,
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Text(
-                        message,
-                        style: GoogleFonts.poppins(fontSize: 13),
-                      ),
+          const SizedBox(height: 8),
+          ConstrainedBox(
+            constraints: BoxConstraints(
+              maxHeight: 300,
+              minHeight: 0,
+            ),
+            child: ListView.builder(
+              shrinkWrap: true,
+              physics: const AlwaysScrollableScrollPhysics(),
+              itemCount: widget.chatLog.length,
+              itemBuilder: (context, index) {
+                // Reverse the index to show newest messages at the top
+                final message = widget.chatLog[widget.chatLog.length - 1 - index];
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: index % 2 == 0
+                          ? widget.platformColor.withOpacity(0.1)
+                          : Colors.white,
+                      borderRadius: BorderRadius.circular(8),
                     ),
-                  );
-                },
-              ),
-            )
-          else
-            ...widget.chatLog
-                .take(3)
-                .toList()
-                .reversed
-                .map((msg) => Padding(
-                      padding: const EdgeInsets.only(bottom: 8),
-                      child: Container(
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Text(
-                          msg,
-                          style: GoogleFonts.poppins(fontSize: 13),
-                        ),
-                      ),
-                    ))
-                .toList(),
+                    child: Text(
+                      message,
+                      style: GoogleFonts.poppins(fontSize: 13),
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
         ],
       ),
     );
