@@ -19,6 +19,8 @@ Ce am facut?
 - Nu raspunde la intrebari care nu au legatura cu subiectul
 - Nu raspunde daca nu are destule informatii pt a nu da raspunsuri false
 - Poate intelege intrebare chiar daca are mici greseli de typing
+- Am adaugat .gitignore ca sa nu dau upload la .env sau alt cotinut sensibil pe git sau la dependintele din app mea 
+- Acum reteua este identificata automat, nu mai e hardcodat si se extrage automat ip ul corespunzator pt rularea serverului, adaugand pachetul network_info_plus
 
  FRONTEND:
 - AppBar personalizat cu titlu centrat și iconițe la stânga/dreapta
@@ -58,3 +60,6 @@ Ce mai trb sa fac?
 - *afisarea importantei mesajului si detalii avansate
 - swipe right pt stergere/ dismiss event
 - functionalitatea butoanelor din Bottom Navigation Bar ( marcaje, home si setari)
+
+Instalare dependinte:
+npm install express body-parser cors dotenv joi chalk

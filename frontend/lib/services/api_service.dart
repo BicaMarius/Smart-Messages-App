@@ -5,53 +5,140 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:frontend/services/logger_service.dart';
 
 class ApiService {
-  // Adresa IP a serverului backend - implicită, modificabilă ulterior
-  static const int _timeoutSeconds = 10; 
-  // static const String _defaultIp = '192.168.1.132'; // Wifi Bucuresti
-  // static const String _defaultIp = '192.168.0.199'; // Wifi Balș
-  static const String _defaultIp = '192.168.135.108'; // Hotspot Honor70
-
-  // URL-ul de bază pentru apelarea backend-ului
+  static const int _timeoutSeconds = 10;
+  static const int _discoveryPort = 3000;
+  
   String _baseUrl = 'http://127.0.0.1:3000/api';
+  String? _currentServerIp;
+  Timer? _discoveryTimer;
+  bool _isDiscovering = false;
 
-  // Constructor care permite setarea unui baseUrl personalizat
   ApiService({String? baseUrl}) {
     if (baseUrl != null) {
       _baseUrl = baseUrl;
     }
-    _loadSavedIp();
+    _initializeServerDiscovery();
   }
 
-  // =======================
-  //   Gestionare IP salvat
-  // =======================
+  Future<void> _initializeServerDiscovery() async {
+    await _loadSavedIp();
+    _startServerDiscovery();
+  }
+
+  void _startServerDiscovery() {
+    _discoveryTimer?.cancel();
+    _discoveryTimer = Timer.periodic(const Duration(seconds: 30), (timer) {
+      if (!_isDiscovering) {
+        _discoverServer();
+      }
+    });
+    _discoverServer();
+  }
+
+  Future<void> _discoverServer() async {
+    if (_isDiscovering) return;
+    _isDiscovering = true;
+    
+    LoggerService.debug('Începem descoperirea serverului...');
+    
+    // Încercăm mai întâi ultimul IP salvat
+    if (_currentServerIp != null) {
+      if (await _testServerConnection(_currentServerIp!)) {
+        _isDiscovering = false;
+        return;
+      }
+    }
+
+    // Încercăm localhost
+    if (await _testServerConnection('127.0.0.1')) {
+      _isDiscovering = false;
+      return;
+    }
+
+    // Încercăm să găsim serverul folosind mDNS
+    try {
+      final response = await http.get(
+        Uri.parse('http://localhost:$_discoveryPort/api/server-info'),
+        headers: {'Accept': 'application/json'},
+      ).timeout(const Duration(seconds: 1));
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        if (data['interfaces'] != null && data['interfaces'].isNotEmpty) {
+          for (var iface in data['interfaces']) {
+            if (iface['ip'] != null) {
+              _currentServerIp = iface['ip'];
+              _baseUrl = 'http://${iface['ip']}:${data['port']}/api';
+              LoggerService.info('Server găsit la: ${iface['ip']} (${iface['interface']})');
+              await _saveServerIp(_currentServerIp!);
+              _isDiscovering = false;
+              return;
+            }
+          }
+        }
+      }
+    } catch (e) {
+      LoggerService.debug('Nu s-a putut găsi serverul prin mDNS: $e');
+    }
+
+    LoggerService.error('Nu s-a putut găsi serverul în rețea');
+    _isDiscovering = false;
+  }
+
+  Future<bool> _testServerConnection(String ip) async {
+    try {
+      final url = 'http://$ip:$_discoveryPort/api/server-info';
+      LoggerService.debug('Testăm conexiunea la: $url');
+
+      final response = await http.get(
+        Uri.parse(url),
+        headers: {'Accept': 'application/json'},
+      ).timeout(const Duration(seconds: 1));
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        
+        if (data['interfaces'] != null && data['interfaces'].isNotEmpty) {
+          for (var iface in data['interfaces']) {
+            if (iface['ip'] != null) {
+              _currentServerIp = iface['ip'];
+              _baseUrl = 'http://${iface['ip']}:${data['port']}/api';
+              
+              LoggerService.info('Server găsit la: ${iface['ip']} (${iface['interface']})');
+              await _saveServerIp(_currentServerIp!);
+              return true;
+            }
+          }
+        }
+      }
+    } catch (e) {
+      // Ignorăm erorile de timeout sau conexiune
+    }
+    return false;
+  }
+
   Future<void> _loadSavedIp() async {
     try {
-      // Forțăm folosirea IP-ului implicit
-      LoggerService.debug('Folosim IP-ul implicit: $_defaultIp');
-      _baseUrl = 'http://$_defaultIp:3000/api';
-      LoggerService.info('Adresa API actualizată: $_baseUrl');
-      
-      // Salvăm IP-ul implicit pentru sesiuni viitoare
       final prefs = await SharedPreferences.getInstance();
-      await prefs.setString('server_ip', _defaultIp);
-      LoggerService.debug('IP salvat în SharedPreferences: $_defaultIp');
+      final savedIp = prefs.getString('server_ip');
+      
+      if (savedIp != null) {
+        _currentServerIp = savedIp;
+        _baseUrl = 'http://$savedIp:$_discoveryPort/api';
+        LoggerService.debug('IP încărcat din SharedPreferences: $savedIp');
+      }
     } catch (e) {
-      LoggerService.error('Eroare la încărcarea adresei IP: $e');
+      LoggerService.error('Eroare la încărcarea IP-ului salvat: $e');
     }
   }
 
-  Future<void> updateServerIp(String newIp) async {
-    _baseUrl = 'http://$newIp:3000/api';
-    LoggerService.info('Adresa API actualizată: $_baseUrl');
-
-    // Salvăm adresa pentru sesiuni viitoare
+  Future<void> _saveServerIp(String ip) async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      await prefs.setString('server_ip', newIp);
-      LoggerService.debug('IP salvat în SharedPreferences: $newIp');
+      await prefs.setString('server_ip', ip);
+      LoggerService.debug('IP salvat în SharedPreferences: $ip');
     } catch (e) {
-      LoggerService.error('Eroare la salvarea adresei IP: $e');
+      LoggerService.error('Eroare la salvarea IP-ului: $e');
     }
   }
 
@@ -111,7 +198,7 @@ class ApiService {
   //   summarizeMessages
   // =============================
   Future<Map<String, dynamic>> summarizeMessages(List<String> messages) async {
-    final localIp = _defaultIp; // Adresa IP a serverului local
+    final localIp = _currentServerIp ?? _baseUrl.split(':')[1].split('/')[0]; // Adresa IP a serverului local
     
     try {
       // Mai întâi încercăm pe localhost
@@ -200,7 +287,7 @@ class ApiService {
   Future<String> askQuestion(List<String> messages, String question) async {
     try {
       // Folosim direct IP-ul implicit pentru ask
-      final askUrl = 'http://$_defaultIp:3000/api/ask';
+      final askUrl = 'http://$_currentServerIp:3000/api/ask';
       LoggerService.debug('Se apelează API-ul la $askUrl');
 
       final response = await http.post(

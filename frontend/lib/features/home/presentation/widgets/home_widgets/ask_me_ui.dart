@@ -142,13 +142,13 @@ class _AskMeUIState extends State<AskMeUI> with SingleTickerProviderStateMixin {
           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
           decoration: BoxDecoration(
             color: isSelected
-                ? widget.platformColor.withOpacity(0.1)
-                : Colors.grey.withOpacity(0.1),
+                ? widget.platformColor.withAlpha(26)
+                : Colors.grey.withAlpha(26),
             borderRadius: BorderRadius.circular(12),
             border: Border.all(
               color: isSelected
                   ? widget.platformColor
-                  : Colors.grey.withOpacity(0.3),
+                  : Colors.grey.withAlpha(77),
             ),
           ),
           child: Center(
@@ -268,7 +268,7 @@ class _AskMeUIState extends State<AskMeUI> with SingleTickerProviderStateMixin {
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
                       color: index % 2 == 0
-                          ? widget.platformColor.withOpacity(0.1)
+                          ? widget.platformColor.withAlpha(26)
                           : Colors.white,
                       borderRadius: BorderRadius.circular(8),
                     ),

@@ -1,0 +1,4 @@
+# Fișier de mediu cu parole, chei, etc.
+.env
+# Node modules directory
+node_modules/
