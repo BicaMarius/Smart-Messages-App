@@ -8,6 +8,7 @@ const os = require('os');
 dotenv.config();
 
 const port = process.env.PORT || 3000;
+const isProduction = process.env.NODE_ENV === 'production';
 
 // Funcție pentru a găsi toate IP-urile disponibile
 function getAllNetworkInterfaces() {
@@ -36,13 +37,15 @@ const primaryIp = networkInterfaces[0]?.address || '127.0.0.1';
 console.log('\n🚀 Starting server...');
 console.log('\n📋 Environment variables:');
 console.log(`   - 🔌 PORT: ${port}`);
+console.log(`   - 🌍 NODE_ENV: ${process.env.NODE_ENV || 'development'}`);
 console.log(`   - 📏 OpenRouter API Key length: ${process.env.OPENROUTER_API_KEY?.length || 0}`);
-console.log('\n🌐 Network Interfaces:');
-networkInterfaces.forEach(iface => {
-    console.log(`   - ${iface.interface}: ${iface.address} (${iface.netmask})`);
-});
 
-console.log('\n🌐 Server will listen on all network interfaces');
+if (!isProduction) {
+    console.log('\n🌐 Network Interfaces:');
+    networkInterfaces.forEach(iface => {
+        console.log(`   - ${iface.interface}: ${iface.address} (${iface.netmask})`);
+    });
+}
 
 // Adăugăm un endpoint pentru a obține toate IP-urile serverului
 app.get('/api/server-info', (req, res) => {
@@ -52,7 +55,9 @@ app.get('/api/server-info', (req, res) => {
             interface: iface.interface
         })),
         port: port,
-        serverUrls: networkInterfaces.map(iface => `http://${iface.address}:${port}`)
+        serverUrls: networkInterfaces.map(iface => `http://${iface.address}:${port}`),
+        isProduction: isProduction,
+        renderIp: isProduction ? ['18.156.158.53', '18.156.42.200', '52.59.103.54'] : null
     });
 });
 
@@ -60,11 +65,17 @@ app.get('/api/server-info', (req, res) => {
 const server = app.listen(port, '0.0.0.0', () => {
     console.log('✅ Server started successfully');
     console.log(`📡 Listening on port ${port}`);
-    console.log(`🔗 Server URL: http://localhost:${port}`);
-    networkInterfaces.forEach(iface => {
-        console.log(`🌐 Server accessible at: ${iface.address}:${port} (${iface.interface})`);
-    });
-    console.log('💻 Server is accessible from other devices on the network\n');
+    
+    if (isProduction) {
+        console.log('🚀 Running in production mode');
+        console.log('🌐 Server accessible at: https://smart-messages-app.onrender.com');
+    } else {
+        console.log(`🔗 Server URL: http://localhost:${port}`);
+        networkInterfaces.forEach(iface => {
+            console.log(`🌐 Server accessible at: ${iface.address}:${port} (${iface.interface})`);
+        });
+        console.log('💻 Server is accessible from other devices on the network\n');
+    }
 });
 
 // Handle server errors
@@ -72,10 +83,12 @@ server.on('error', (error) => {
     console.error('❌ Server error:', error);
 });
 
-// Handle client connections
-server.on('connection', (socket) => {
-    console.log(`🔌 New client connected from ${socket.remoteAddress}:${socket.remotePort}`);
-});
+// Handle client connections - only log in development
+if (!isProduction) {
+    server.on('connection', (socket) => {
+        console.log(`🔌 New client connected from ${socket.remoteAddress}:${socket.remotePort}`);
+    });
+}
 
 // Handle client disconnections
 server.on('close', () => {

@@ -15,6 +15,15 @@ app.use(bodyParser.json());
 app.use(express.static(path.join(__dirname, '../public')));
 app.use(logger);
 
+// Health check endpoint
+app.get('/healthz', (req, res) => {
+    res.status(200).json({ 
+        status: 'ok',
+        timestamp: new Date().toISOString(),
+        environment: process.env.NODE_ENV || 'development'
+    });
+});
+
 // Routes
 app.use('/api', chatRoutes);
 
