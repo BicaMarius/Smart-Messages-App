@@ -2,6 +2,8 @@
     <!-- Calendar permissions -->
     <uses-permission android:name="android.permission.READ_CALENDAR" />
     <uses-permission android:name="android.permission.WRITE_CALENDAR" />
+    <uses-permission android:name="android.permission.INTERNET"/>
+
     <application
         android:label="Smart Messages"
         android:name="${applicationName}"
