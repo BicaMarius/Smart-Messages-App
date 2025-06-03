@@ -47,20 +47,6 @@ if (!isProduction) {
     });
 }
 
-// Adăugăm un endpoint pentru a obține toate IP-urile serverului
-app.get('/api/server-info', (req, res) => {
-    res.json({
-        interfaces: networkInterfaces.map(iface => ({
-            ip: iface.address,
-            interface: iface.interface
-        })),
-        port: port,
-        serverUrls: networkInterfaces.map(iface => `http://${iface.address}:${port}`),
-        isProduction: isProduction,
-        renderIp: isProduction ? ['18.156.158.53', '18.156.42.200', '52.59.103.54'] : null
-    });
-});
-
 // Start the server
 const server = app.listen(port, '0.0.0.0', () => {
     console.log('✅ Server started successfully');
