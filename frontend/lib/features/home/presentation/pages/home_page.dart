@@ -218,6 +218,10 @@ class _HomePageState extends State<HomePage> {
         : null;
       
       if (personName != null) {
+        final dates = _personDatesByPlatform[platform]?[personName] ?? [];
+        for (final date in dates) {
+          _conversationMessagesByPlatform[platform]?.remove(date);
+        }
         _availablePeopleByPlatform[platform]?.remove(personName);
         _personDatesByPlatform[platform]?.remove(personName);
         _selectedPersonByPlatform[platform] = null;
@@ -256,18 +260,12 @@ class _HomePageState extends State<HomePage> {
       LoggerService.debug('File: $fileName');
       LoggerService.debug('Platform: $platform');
       
-      // Clear previous data for this platform
+      // Reset selection for this platform but keep existing data
       setState(() {
-        _availablePeopleByPlatform[platform] = [];
-        _personDatesByPlatform[platform] = {};
-        _conversationMessagesByPlatform[platform] = {};
         _selectedPersonByPlatform[platform] = null;
         _selectedDateByPlatform[platform] = null;
         _conversationSummaryByPlatform[platform] = null;
       });
-      
-      // Clear data from SharedPreferences
-      await storageService.clearPlatformData(platform);
       
       if (platform == 'WhatsApp' && (fileName.contains('WhatsApp') || content.contains('Mesajele și apelurile sunt criptate integral'))) {
         await _parseWhatsAppConversation(content, platform, fileName);
@@ -775,7 +773,10 @@ class _HomePageState extends State<HomePage> {
       if (result != null && result.files.isNotEmpty) {
         final file = result.files.first;
         setState(() {
-          _uploadedFilePathsByPlatform[platformName]!.add(file.path!);
+          final paths = _uploadedFilePathsByPlatform[platformName]!;
+          if (!paths.contains(file.path!)) {
+            paths.add(file.path!);
+          }
         });
         await _parseFile(file.path!, platformName);
 
