@@ -1,0 +1,13 @@
+# Ignore IDE settings
+.idea/
+.vscode/
+
+# Ignore project files from JetBrains IDEs
+*.iml
+
+# Ignore system files
+.DS_Store
+
+# Vim swap files and backups
+*.swp
+*~

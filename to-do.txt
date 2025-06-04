@@ -26,6 +26,11 @@ Ce am facut?
 - Am optimizat configurația serverului pentru producție, eliminand codul redundant
 - Am configurat noul URL și permisiunile de internet (AndroidManifest)
 - Am implementat sistem de logging și fallback local
+- Am implementat serviciul nameAnonymizer care detectează automat numele folosind biblioteca compromise și le înlocuiește cu token-uri
+- Fiecare token generat este afisat cu logger.debug pentru verificare
+- Acum openRouterService folosește acest serviciu pentru a anonimiza mesajele, loghează rezultatul și deanonimizează răspunsul API
+- Am eliminat codul redundant de encryption middleware
+- Am adaugat un .gitignore pentru folderul principal pentru a nu mai da push inutil la folderul .idea
 
  FRONTEND:
 - AppBar personalizat cu titlu centrat și iconițe la stânga/dreapta
@@ -61,13 +66,22 @@ Ce mai trb sa fac?
  - *detectare locatie la detected events daca se trimite un link catre maps
  - *pt panelul de whatsApp afisarea stikerelor si posibilitatea salvarii lor
  - *detectare si interpretare imagini si video
+ - *pot adauga un memory roadmap/ custom album bazat pe "amintirile salvate" adica mesajele sumarizate salvate
  - pot adauga functia de salvare a sumarizarilor printr-un icon cu o steluta => baze de date cu login?
 
  FRONTEND:
 - *statistica pt mesaje
 - *afisarea importantei mesajului si detalii avansate
 - *swipe right pt stergere/ dismiss event
+- *login panel, functiile din setari (tema, cont, gestionare paneluri- ordine,adaugare,stergere, etc)
+- *pagina de favorite si de home ca user nou
+- *posibilitatea de salvare mesaje favorite prin icon steluta/ inimioara
+- *roadmap memory/ custom album
 - functionalitatea butoanelor din Bottom Navigation Bar ( marcaje, home si setari)
 
 Instalare dependinte:
 npm install express body-parser cors dotenv joi chalk (nu mai e nevoie, avem serverul deployed)
+- nu mai conteaza, ele se instaleaza automat de pe serverul unde avem deploy pe render.com printr-un simplu npm install
+Instalare versiune noua de FRONTEND:
+- flutter build apk --release
+- flutter install / trimite apk ul prin mesagerie sau pe MagazinPlay
