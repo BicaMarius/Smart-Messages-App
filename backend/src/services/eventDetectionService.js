@@ -48,6 +48,13 @@ class EventDetectionService {
           const [dateTimePart, location] = detailsPart.split(',').map(part => part.trim());
           const [datePart, timePart] = dateTimePart.split(' ').filter(Boolean);
 
+          const hasLocation = location && location.length > 0;
+          const hasTimeInfo = timePart || /(diminea|sear|pranz|noapte|morning|evening|afternoon|night)/i.test(detailsPart);
+          if (!hasLocation || !hasTimeInfo) {
+            console.log('Ignored potential event due to missing location or time information:', line);
+            continue;
+          }
+
           // Create event object
           const event = {
             title: titlePart,
