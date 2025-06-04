@@ -4,6 +4,7 @@ const { summaryPrompt } = require('../config/summaryPrompt');
 const { eventDetectionPrompt } = require('../config/eventDetectionPrompt');
 const { askPrompt } = require('../config/askPrompt');
 const logger = require('./loggerService');
+const nameAnonymizer = require('./nameAnonymizer');
 
 class OpenRouterService {
   constructor() {
@@ -39,7 +40,13 @@ class OpenRouterService {
     try {
       logger.debug(`Se face request către OpenRouter API...`);
       logger.debug(`Număr mesaje procesate: ${messages.length}`);
-      
+
+      logger.debug('Anonimizare mesaje...');
+      const anonymizedMessages = nameAnonymizer.anonymize(messages);
+      logger.debug('Mesaje anonimizate');
+      logger.debug(`Mesaje anonimizate:\n${anonymizedMessages.join('\n')}`);
+      logger.debug(`Mapare nume: ${JSON.stringify(nameAnonymizer.getMapping())}`);
+
       const response = await axios.post(
         `${this.baseUrl}/chat/completions`,
         {
@@ -51,7 +58,7 @@ class OpenRouterService {
             },
             {
               role: "user",
-              content: messages.join('\n')
+              content: anonymizedMessages.join('\n')
             }
           ],
           temperature: config.openRouterApi.temperature,
@@ -67,8 +74,14 @@ class OpenRouterService {
 
       logger.debug('Răspuns primit de la OpenRouter API');
       logger.debug(`Status răspuns: ${response.status}`);
-      
-      return response.data.choices[0].message.content;
+
+      const aiMessage = response.data.choices[0].message.content;
+      const deAnonymized = nameAnonymizer.deanonymize([aiMessage])[0];
+      logger.debug(`Mesaj de-anonimizat:\n${deAnonymized}`);
+
+      nameAnonymizer.reset();
+
+      return deAnonymized;
     } catch (error) {
       logger.error(`Eroare la apelul OpenRouter API: ${error.message}`);
       throw error;
@@ -76,4 +89,4 @@ class OpenRouterService {
   }
 }
 
-module.exports = new OpenRouterService(); 
+module.exports = new OpenRouterService();
