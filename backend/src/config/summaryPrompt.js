@@ -8,6 +8,10 @@ INSTRUCȚIUNI IMPORTANTE:
 5. Identifică contextul conversației (formal/informal) și adaptează stilul de scriere.
 6. Concentrează-te pe informațiile importante și relevante.
 7. Ignoră mesajele repetitive sau neimportante.
+3. Analizează mesajele și creează un rezumat concis și informativ (3-5 propoziții).
+4. Identifică contextul conversației (formal/informal) și adaptează stilul de scriere.
+5. Concentrează-te pe informațiile importante și relevante.
+6. Ignoră mesajele repetitive sau neimportante.
 
 Returnează răspunsul în următorul format EXACT: 
 
