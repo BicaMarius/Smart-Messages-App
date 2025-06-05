@@ -1,45 +1,43 @@
 class EventDetectionService {
   async extractEvents(aiResponse) {
     console.log('Extracting events from AI response...');
-    
+
     try {
-      // The AI response should already be in the correct format
-      // We just need to parse it into a structured format
       const events = [];
-      
-      // Split the response into summary and events sections
+
       const summaryMatch = aiResponse.match(/sumarizare:\s*([\s\S]*?)(?=evenimente:|$)/i);
       const eventsMatch = aiResponse.match(/evenimente:\s*([\s\S]*?)$/i);
-      
+
       if (!eventsMatch) {
         console.log('No events section found in response');
-        return { 
-          summary: summaryMatch ? summaryMatch[1].trim() : '', 
-          events: [] 
+        return {
+          summary: summaryMatch ? summaryMatch[1].trim() : '',
+          events: []
         };
       }
 
       const eventsText = eventsMatch[1].trim();
-      
-      // Check if there are no events
+
       if (
-        eventsText.toLowerCase().includes('nu există evenimente') || 
+        eventsText.toLowerCase().includes('nu există evenimente') ||
         eventsText.toLowerCase().includes('niciun eveniment')
       ) {
         console.log('No events detected in response');
-        return { 
-          summary: summaryMatch ? summaryMatch[1].trim() : '', 
-          events: [] 
+        return {
+          summary: summaryMatch ? summaryMatch[1].trim() : '',
+          events: []
         };
       }
 
-      // The AI will return events in a consistent format
-      // Each line starting with - will be an event
-      const eventLines = eventsText.split('\n')
-        .filter(line => line.trim().startsWith('-'))
-        .map(line => line.replace(/^-\s*/, '').trim());
+      const eventLines = eventsText
+        .split('\n')
+        .map(line => line.trim())
+        .filter(line => line.startsWith('-'))
+        .map(line => line.replace(/^-\s*/, ''));
 
       for (const line of eventLines) {
+        const event = this.parseEventLine(line);
+        if (event) {
         try {
           // The AI will format each event line as: "Title: Date Time, Location"
           const [titlePart, detailsPart] = line.split(':').map(part => part.trim());
@@ -71,8 +69,6 @@ class EventDetectionService {
 
           events.push(event);
           console.log(`Event detected: ${event.title} on ${event.dateTime}`);
-        } catch (error) {
-          console.error('Error parsing event line:', error);
         }
       }
 
@@ -83,6 +79,36 @@ class EventDetectionService {
     } catch (error) {
       console.error('Error in extractEvents:', error);
       return { summary: '', events: [] };
+    }
+  }
+
+  parseEventLine(line) {
+    try {
+      const [titlePart, detailsPart] = line.split(':').map(part => part.trim());
+      if (!titlePart || !detailsPart) return null;
+
+      const [dateTimePart, location] = detailsPart.split(',').map(part => part.trim());
+      const [datePart, timePart] = dateTimePart.split(' ').filter(Boolean);
+
+      const hasLocation = location && location.length > 0;
+      const hasTimeInfo =
+        timePart || /(diminea|sear|pranz|noapte|morning|evening|afternoon|night)/i.test(detailsPart);
+      const isBirthday = /ziua|nastere|birthday/i.test(titlePart);
+      if (!isBirthday && (!hasLocation || !hasTimeInfo)) {
+        console.log('Ignored potential event due to missing location or time information:', line);
+        return null;
+      }
+
+      return {
+        title: titlePart,
+        dateTime: this.parseDateTime(datePart, timePart),
+        location: location || '',
+        eventType: 'Eveniment',
+        isAllDay: !timePart || isBirthday
+      };
+    } catch (error) {
+      console.error('Error parsing event line:', error);
+      return null;
     }
   }
 
