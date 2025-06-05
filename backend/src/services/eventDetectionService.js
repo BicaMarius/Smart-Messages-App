@@ -4,14 +4,7 @@ class EventDetectionService {
     console.log('Extracting events from AI response...');
 
     try {
-      let jsonStr = aiResponse;
-      // if response contains additional text, extract the JSON object
-      const match = aiResponse.match(/\{[\s\S]*\}/);
-      if (match) {
-        jsonStr = match[0];
-      }
-
-      const parsed = JSON.parse(jsonStr);
+      const parsed = JSON.parse(aiResponse);
       const rawEvents = Array.isArray(parsed.evenimente) ? parsed.evenimente : [];
       const unique = new Set();
       const events = [];
