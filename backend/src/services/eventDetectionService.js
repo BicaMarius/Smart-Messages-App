@@ -4,7 +4,28 @@ class EventDetectionService {
     console.log('Extracting events from AI response...');
 
     try {
-      const parsed = JSON.parse(aiResponse);
+      let jsonStr = aiResponse;
+      // Extract the first complete JSON object if response has extra text
+      const extractJson = text => {
+        const start = text.indexOf('{');
+        if (start === -1) return null;
+        let depth = 0;
+        for (let i = start; i < text.length; i++) {
+          if (text[i] === '{') depth++;
+          if (text[i] === '}') depth--;
+          if (depth === 0) {
+            return text.slice(start, i + 1);
+          }
+        }
+        return null;
+      };
+
+      const extracted = extractJson(aiResponse);
+      if (extracted) {
+        jsonStr = extracted;
+      }
+
+      const parsed = JSON.parse(jsonStr);
       const rawEvents = Array.isArray(parsed.evenimente) ? parsed.evenimente : [];
       const unique = new Set();
       const events = [];
