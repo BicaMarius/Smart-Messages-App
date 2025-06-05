@@ -50,8 +50,12 @@ class EventDetectionService {
 
           const hasLocation = location && location.length > 0;
           const hasTimeInfo = timePart || /(diminea|sear|pranz|noapte|morning|evening|afternoon|night)/i.test(detailsPart);
+
           const isBirthday = /ziua|nastere|birthday/i.test(titlePart);
           if (!isBirthday && (!hasLocation || !hasTimeInfo)) {
+
+          if (!hasLocation || !hasTimeInfo) {
+
             console.log('Ignored potential event due to missing location or time information:', line);
             continue;
           }
