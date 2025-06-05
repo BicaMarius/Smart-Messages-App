@@ -7,7 +7,7 @@ INSTRUCȚIUNI IMPORTANTE:
 4. Identifică contextul conversației (formal/informal) și adaptează stilul de scriere.
 5. Concentrează-te pe informațiile importante și relevante.
 6. Ignoră mesajele repetitive sau neimportante.
-7. Asigură-te că textul generat este corect gramatical și clar formulat.
+7. Asigură-te că textul generat este corect gramatical, coerent și clar formulat.
 
 Returnează răspunsul în următorul format EXACT:
 
