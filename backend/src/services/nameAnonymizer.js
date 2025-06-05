@@ -4,18 +4,8 @@ const { tokenPrefixes } = require('../config/config');
 
 class NameAnonymizer {
   constructor() {
-    this.speakerMap = new Map();
-    this.speakerTokenMap = new Map();
     this.messageMap = new Map();
     this.messageTokenMap = new Map();
-  }
-
-  _generateSpeakerToken(name) {
-    const token = `${tokenPrefixes.speaker}${this.speakerMap.size + 1}`;
-    this.speakerMap.set(name, token);
-    this.speakerTokenMap.set(token, name);
-    logger.debug(`Anonymized speaker "${name}" as token ${token}`);
-    return token;
   }
 
   _generateMessageToken(name) {
@@ -39,27 +29,16 @@ class NameAnonymizer {
       return null;
     };
 
-    // prepopulate speaker tokens
-    messages.forEach(msg => {
-      const name = extractName(msg);
-      if (name && !this.speakerMap.has(name)) {
-        this._generateSpeakerToken(name);
-      }
-    });
-
     return messages.map(originalMsg => {
       let msg = originalMsg;
       const name = extractName(msg);
       let textPart = msg;
       if (name) {
-        const token = this.speakerMap.get(name);
         const hyphen = msg.indexOf(' - ');
         const colonIndex = msg.indexOf(':', hyphen !== -1 ? hyphen + 3 : 0);
         if (colonIndex !== -1) {
           textPart = msg.slice(colonIndex + 1);
-          msg = `${msg.slice(0, colonIndex).replace(name, token)}:${textPart}`;
         } else {
-          msg = msg.replace(name, token);
           textPart = msg;
         }
       }
@@ -90,25 +69,18 @@ class NameAnonymizer {
   }
 
   deanonymize(messages) {
-    const speakerRegex = new RegExp(`${tokenPrefixes.speaker}\\d+`, 'g');
     const messageRegex = new RegExp(`${tokenPrefixes.message}\\d+`, 'g');
-    return messages.map(msg => {
-      msg = msg.replace(speakerRegex, token => this.speakerTokenMap.get(token) || token);
-      msg = msg.replace(messageRegex, token => this.messageTokenMap.get(token) || token);
-      return msg;
-    });
+    return messages.map(msg => msg.replace(messageRegex, token => this.messageTokenMap.get(token) || token));
   }
 
   reset() {
-    this.speakerMap.clear();
-    this.speakerTokenMap.clear();
+    // no speaker maps to reset
     this.messageMap.clear();
     this.messageTokenMap.clear();
   }
 
   getMapping() {
     return {
-      speakers: Object.fromEntries(this.speakerMap),
       messages: Object.fromEntries(this.messageMap)
     };
   }

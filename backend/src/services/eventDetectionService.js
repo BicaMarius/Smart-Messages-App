@@ -1,38 +1,11 @@
+
 class EventDetectionService {
   async extractEvents(aiResponse) {
     console.log('Extracting events from AI response...');
 
     try {
-      const lower = aiResponse.toLowerCase();
-      const summaryIndex = lower.indexOf('sumarizare:');
-      const eventsIndex = lower.indexOf('evenimente:');
-
-      let summary = '';
-      if (summaryIndex !== -1) {
-        const end = eventsIndex !== -1 ? eventsIndex : aiResponse.length;
-        summary = aiResponse
-          .slice(summaryIndex + 'sumarizare:'.length, end)
-          .trim();
-      }
-
-      if (eventsIndex === -1) {
-        console.log('No events section found in response');
-        return { summary, events: [] };
-      }
-
-      const eventsText = aiResponse.slice(eventsIndex + 'evenimente:'.length).trim();
-      if (!eventsText.startsWith('[')) {
-        console.log('Events section is not JSON');
-        return { summary, events: [] };
-      }
-
-      let rawEvents;
-      try {
-        rawEvents = JSON.parse(eventsText);
-      } catch (err) {
-        console.error('Failed to parse events JSON:', err);
-        return { summary, events: [] };
-      }
+      const parsed = JSON.parse(aiResponse);
+      const rawEvents = Array.isArray(parsed.evenimente) ? parsed.evenimente : [];
 
       const events = rawEvents
         .filter(ev => ev && (ev.location || ev.time || ev.allDay))
@@ -48,10 +21,10 @@ class EventDetectionService {
         console.log(`Event detected: ${ev.title} on ${ev.dateTime}`)
       );
 
-      return { summary, events };
+      return { events };
     } catch (error) {
       console.error('Error in extractEvents:', error);
-      return { summary: '', events: [] };
+      return { events: [] };
     }
   }
 
