@@ -6,6 +6,7 @@ class NameAnonymizer {
   constructor() {
     this.messageMap = new Map();
     this.messageTokenMap = new Map();
+    this.knownNames = new Set();
   }
 
   _generateMessageToken(name) {
@@ -28,6 +29,19 @@ class NameAnonymizer {
       }
       return null;
     };
+
+    // gather all speaker names to improve person detection
+    messages.forEach(msg => {
+      const name = extractName(msg);
+      if (name) {
+        this.knownNames.add(name);
+      }
+    });
+    const words = {};
+    this.knownNames.forEach(n => {
+      words[n] = 'Person';
+    });
+    nlp.addWords(words);
 
     return messages.map(originalMsg => {
       let msg = originalMsg;
@@ -77,6 +91,7 @@ class NameAnonymizer {
     // no speaker maps to reset
     this.messageMap.clear();
     this.messageTokenMap.clear();
+    this.knownNames.clear();
   }
 
   getMapping() {
