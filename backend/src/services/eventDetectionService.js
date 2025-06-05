@@ -56,15 +56,20 @@ class EventDetectionService {
   parseEventLine(line) {
     try {
       const [titlePart, detailsPart] = line.split(':').map(part => part.trim());
-      if (!titlePart || !detailsPart) return null;
+      if (!titlePart || !detailsPart) {
+        return null;
+      }
 
-      const [dateTimePart, location] = detailsPart.split(',').map(part => part.trim());
+      const [dateTimePart, locationPart = ''] = detailsPart
+        .split(',')
+        .map(part => part.trim());
       const [datePart, timePart] = dateTimePart.split(' ').filter(Boolean);
 
-      const hasLocation = location && location.length > 0;
+      const hasLocation = locationPart.length > 0;
       const hasTimeInfo =
         timePart || /(diminea|sear|pranz|noapte|morning|evening|afternoon|night)/i.test(detailsPart);
       const isBirthday = /ziua|nastere|birthday/i.test(titlePart);
+
       if (!isBirthday && (!hasLocation || !hasTimeInfo)) {
         console.log('Ignored potential event due to missing location or time information:', line);
         return null;
@@ -73,12 +78,12 @@ class EventDetectionService {
       return {
         title: titlePart,
         dateTime: this.parseDateTime(datePart, timePart),
-        location: location || '',
+        location: locationPart,
         eventType: 'Eveniment',
-        isAllDay: !timePart || isBirthday
+        isAllDay: !timePart || isBirthday,
       };
     } catch (error) {
-      console.error('Error parsing event line:', error);
+      console.error('Error parsing event line:', line, error);
       return null;
     }
   }
