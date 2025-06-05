@@ -1,3 +1,5 @@
+const { jsonrepair } = require('jsonrepair');
+
 class EventDetectionService {
   getReferenceDate(messages) {
     if (!messages || messages.length === 0) return new Date();
@@ -30,12 +32,29 @@ class EventDetectionService {
         return null;
       };
 
-      const extracted = extractJson(aiResponse);
+      let extracted = extractJson(aiResponse);
+      if (!extracted) {
+        const startIdx = aiResponse.indexOf('{');
+        const endIdx = aiResponse.lastIndexOf('}');
+        if (startIdx !== -1 && endIdx !== -1 && endIdx > startIdx) {
+          extracted = aiResponse.slice(startIdx, endIdx + 1);
+        }
+      }
       if (extracted) {
         jsonStr = extracted;
       }
 
-      const parsed = JSON.parse(jsonStr);
+      let parsed;
+      try {
+        parsed = JSON.parse(jsonStr);
+      } catch (err) {
+        try {
+          parsed = JSON.parse(jsonrepair(jsonStr));
+        } catch (repairErr) {
+          console.error('Error repairing JSON:', repairErr);
+          throw err;
+        }
+      }
       const rawEvents = Array.isArray(parsed.evenimente) ? parsed.evenimente : [];
       const unique = new Set();
       const events = [];
