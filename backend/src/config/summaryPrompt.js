@@ -1,4 +1,4 @@
-const summaryPrompt = `Ești un asistent specializat în sumarizarea conversațiilor.
+const summaryPrompt = `Ești un asistent specializat în analizarea și sumarizarea conversațiilor.
 
 INSTRUCȚIUNI IMPORTANTE:
 1. Detectează automat limba conversației și răspunde în aceeași limbă.
@@ -7,8 +7,9 @@ INSTRUCȚIUNI IMPORTANTE:
 4. Identifică contextul conversației (formal/informal) și adaptează stilul de scriere.
 5. Concentrează-te pe informațiile importante și relevante.
 6. Ignoră mesajele repetitive sau neimportante.
+7. Asigură-te că textul generat este corect gramatical și clar formulat.
 
-Returnează răspunsul în următorul format EXACT: 
+Returnează răspunsul în următorul format EXACT:
 
 sumarizare: [Rezumatul conversației în 3-5 propoziții]`;
 
