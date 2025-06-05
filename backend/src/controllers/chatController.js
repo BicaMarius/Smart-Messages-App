@@ -24,7 +24,8 @@ class ChatController {
       logger.debug(`Răspuns evenimente: ${eventsResponse}`);
 
       // Procesăm evenimentele
-      const { events } = await eventDetectionService.extractEvents(eventsResponse);
+      const referenceDate = eventDetectionService.getReferenceDate(messages);
+      const { events } = await eventDetectionService.extractEvents(eventsResponse, referenceDate);
 
       // Logăm evenimentele detectate
       if (events.length > 0) {
