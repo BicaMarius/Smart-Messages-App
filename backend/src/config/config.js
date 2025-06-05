@@ -10,6 +10,10 @@ module.exports = {
         temperature: 0.7,
         // maxTokens: 800
     },
+    tokenPrefixes: {
+        speaker: 'user',
+        message: 'p'
+    },
     cors: {
         origin: '*',
         methods: ['GET', 'POST', 'OPTIONS'],

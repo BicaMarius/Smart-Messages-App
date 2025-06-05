@@ -1,80 +1,54 @@
 class EventDetectionService {
   async extractEvents(aiResponse) {
     console.log('Extracting events from AI response...');
-    
+
     try {
-      // The AI response should already be in the correct format
-      // We just need to parse it into a structured format
-      const events = [];
-      
-      // Split the response into summary and events sections
-      const summaryMatch = aiResponse.match(/sumarizare:\s*([\s\S]*?)(?=evenimente:|$)/i);
-      const eventsMatch = aiResponse.match(/evenimente:\s*([\s\S]*?)$/i);
-      
-      if (!eventsMatch) {
+      const lower = aiResponse.toLowerCase();
+      const summaryIndex = lower.indexOf('sumarizare:');
+      const eventsIndex = lower.indexOf('evenimente:');
+
+      let summary = '';
+      if (summaryIndex !== -1) {
+        const end = eventsIndex !== -1 ? eventsIndex : aiResponse.length;
+        summary = aiResponse
+          .slice(summaryIndex + 'sumarizare:'.length, end)
+          .trim();
+      }
+
+      if (eventsIndex === -1) {
         console.log('No events section found in response');
-        return { 
-          summary: summaryMatch ? summaryMatch[1].trim() : '', 
-          events: [] 
-        };
+        return { summary, events: [] };
       }
 
-      const eventsText = eventsMatch[1].trim();
-      
-      // Check if there are no events
-      if (
-        eventsText.toLowerCase().includes('nu există evenimente') || 
-        eventsText.toLowerCase().includes('niciun eveniment')
-      ) {
-        console.log('No events detected in response');
-        return { 
-          summary: summaryMatch ? summaryMatch[1].trim() : '', 
-          events: [] 
-        };
+      const eventsText = aiResponse.slice(eventsIndex + 'evenimente:'.length).trim();
+      if (!eventsText.startsWith('[')) {
+        console.log('Events section is not JSON');
+        return { summary, events: [] };
       }
 
-      // The AI will return events in a consistent format
-      // Each line starting with - will be an event
-      const eventLines = eventsText.split('\n')
-        .filter(line => line.trim().startsWith('-'))
-        .map(line => line.replace(/^-\s*/, '').trim());
-
-      for (const line of eventLines) {
-        try {
-          // The AI will format each event line as: "Title: Date Time, Location"
-          const [titlePart, detailsPart] = line.split(':').map(part => part.trim());
-          if (!titlePart || !detailsPart) continue;
-
-          const [dateTimePart, location] = detailsPart.split(',').map(part => part.trim());
-          const [datePart, timePart] = dateTimePart.split(' ').filter(Boolean);
-
-          const hasLocation = location && location.length > 0;
-          const hasTimeInfo = timePart || /(diminea|sear|pranz|noapte|morning|evening|afternoon|night)/i.test(detailsPart);
-          if (!hasLocation || !hasTimeInfo) {
-            console.log('Ignored potential event due to missing location or time information:', line);
-            continue;
-          }
-
-          // Create event object
-          const event = {
-            title: titlePart,
-            dateTime: this.parseDateTime(datePart, timePart),
-            location: location || '',
-            eventType: 'Eveniment', // The AI will determine the type
-            isAllDay: !timePart // If no time specified, it's an all-day event
-          };
-
-          events.push(event);
-          console.log(`Event detected: ${event.title} on ${event.dateTime}`);
-        } catch (error) {
-          console.error('Error parsing event line:', error);
-        }
+      let rawEvents;
+      try {
+        rawEvents = JSON.parse(eventsText);
+      } catch (err) {
+        console.error('Failed to parse events JSON:', err);
+        return { summary, events: [] };
       }
 
-      return {
-        summary: summaryMatch ? summaryMatch[1].trim() : '',
-        events
-      };
+      const events = rawEvents
+        .filter(ev => ev && (ev.location || ev.time || ev.allDay))
+        .map(ev => ({
+          title: ev.title,
+          dateTime: this.parseDateTime(ev.date, ev.time),
+          location: ev.location || '',
+          eventType: ev.type || 'Eveniment',
+          isAllDay: ev.allDay || !ev.time
+        }));
+
+      events.forEach(ev =>
+        console.log(`Event detected: ${ev.title} on ${ev.dateTime}`)
+      );
+
+      return { summary, events };
     } catch (error) {
       console.error('Error in extractEvents:', error);
       return { summary: '', events: [] };
