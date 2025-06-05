@@ -14,6 +14,10 @@ INSTRUCȚIUNI IMPORTANTE:
   - Pentru urările de ziua de naștere detectează un eveniment "Ziua lui [nume]" la data menționată sau dedusă din context, all-day dacă nu se specifică ora.
   - Evită dublarea evenimentelor care descriu aceeași întâlnire.
   - Nu returna evenimente aproape identice (titlu și dată asemănătoare).
+  - Dacă data sau ora pot fi deduse logic din context (ex. "mâine", "diseară"), dedu-le și folosește-le.
+  - Dacă se folosesc pronume pentru locație ("la mine", "la noi"), dedu numele persoanei care a trimis mesajul și folosește formularea "acasă la [nume]".
+  - Pentru urările de ziua de naștere detectează un eveniment "Ziua lui [nume]" la data menționată sau dedusă din context, all-day dacă nu se specifică ora.
+  - Evită dublarea evenimentelor care descriu aceeași întâlnire.
 4. Pentru fiecare eveniment detectat:
    - Determină titlul potrivit bazat pe context.
    - Extrage data și ora exactă/partea din zi(zi,pranz,seara,etc) la care se va intampla evenimentul(acolo unde se poate si sunt specificate).
