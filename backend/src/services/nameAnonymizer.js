@@ -1,5 +1,6 @@
 const logger = require('./loggerService');
 const nlp = require('compromise');
+const { tokenPrefixes } = require('../config/config');
 
 class NameAnonymizer {
   constructor() {
@@ -10,7 +11,7 @@ class NameAnonymizer {
   }
 
   _generateSpeakerToken(name) {
-    const token = `user${this.speakerMap.size + 1}`;
+    const token = `${tokenPrefixes.speaker}${this.speakerMap.size + 1}`;
     this.speakerMap.set(name, token);
     this.speakerTokenMap.set(token, name);
     logger.debug(`Anonymized speaker "${name}" as token ${token}`);
@@ -18,7 +19,7 @@ class NameAnonymizer {
   }
 
   _generateMessageToken(name) {
-    const token = `p${this.messageMap.size + 1}`;
+    const token = `${tokenPrefixes.message}${this.messageMap.size + 1}`;
     this.messageMap.set(name, token);
     this.messageTokenMap.set(token, name);
     logger.debug(`Anonymized text name "${name}" as token ${token}`);
@@ -64,7 +65,7 @@ class NameAnonymizer {
       }
 
       const doc = nlp(textPart);
-      doc.match('#ProperNoun+').out('array').forEach(personName => {
+      doc.people().out('array').forEach(personName => {
         if (!this.messageMap.has(personName)) {
           this._generateMessageToken(personName);
         }
@@ -89,9 +90,11 @@ class NameAnonymizer {
   }
 
   deanonymize(messages) {
+    const speakerRegex = new RegExp(`${tokenPrefixes.speaker}\\d+`, 'g');
+    const messageRegex = new RegExp(`${tokenPrefixes.message}\\d+`, 'g');
     return messages.map(msg => {
-      msg = msg.replace(/user\d+/g, token => this.speakerTokenMap.get(token) || token);
-      msg = msg.replace(/p\d+/g, token => this.messageTokenMap.get(token) || token);
+      msg = msg.replace(speakerRegex, token => this.speakerTokenMap.get(token) || token);
+      msg = msg.replace(messageRegex, token => this.messageTokenMap.get(token) || token);
       return msg;
     });
   }
