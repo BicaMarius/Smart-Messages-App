@@ -1,5 +1,4 @@
 class EventDetectionService {
-  async extractEvents(aiResponse) {
   getReferenceDate(messages) {
     if (!messages || messages.length === 0) return new Date();
     const last = messages[messages.length - 1];
@@ -15,7 +14,6 @@ class EventDetectionService {
     console.log('Extracting events from AI response...');
 
     try {
-      const parsed = JSON.parse(aiResponse);
       let jsonStr = aiResponse;
       // Extract the first complete JSON object if response has extra text
       const extractJson = text => {
@@ -42,16 +40,8 @@ class EventDetectionService {
       const unique = new Set();
       const events = [];
 
-      const events = rawEvents
       rawEvents
         .filter(ev => ev && (ev.location || ev.time || ev.allDay))
-        .map(ev => ({
-          title: ev.title,
-          dateTime: this.parseDateTime(ev.date, ev.time),
-          location: ev.location || '',
-          eventType: ev.type || 'Eveniment',
-          isAllDay: ev.allDay || !ev.time
-        }));
         .forEach(ev => {
           const dateTime = this.parseDateTime(ev.date || ev.dates || '', ev.time, referenceDate);
           const key = `${ev.title}|${dateTime}|${ev.location}`;
@@ -78,18 +68,9 @@ class EventDetectionService {
     }
   }
 
-  parseDateTime(dateStr, timeStr) {
   parseDateTime(dateStr = '', timeStr = '', referenceDate = new Date()) {
     const base = new Date(referenceDate);
     try {
-      // Parse date in DD/MM/YYYY format
-      const [day, month, year] = dateStr.split('/').map(num => parseInt(num));
-      const date = new Date(year, month - 1, day);
-
-      // If time is provided, add it to the date
-      if (timeStr) {
-        const [hours, minutes] = timeStr.split(':').map(num => parseInt(num));
-        date.setHours(hours, minutes);
       let date = new Date(base);
 
       const numericDate = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/.exec(dateStr.trim());
@@ -125,14 +106,12 @@ class EventDetectionService {
         }
       }
 
-      const numeric = /(\d{1,2})(?::(\d{2}))?/.exec(timeStr);
       let hours, minutes;
+      const numeric = /(\d{1,2})(?::(\d{2}))?/.exec(timeStr);
       if (numeric) {
         hours = parseInt(numeric[1], 10);
         minutes = parseInt(numeric[2] || '0', 10);
       } else {
-        // For all-day events, set to noon to avoid timezone issues
-        date.setHours(12, 0);
         const phrase = `${timeStr} ${dateStr}`.toLowerCase();
         if (phrase.includes('dimine')) {
           hours = 9; minutes = 0;
@@ -144,17 +123,19 @@ class EventDetectionService {
           hours = 23; minutes = 0;
         } else if (phrase.includes('dupa') && phrase.includes('amiaza')) {
           hours = 16; minutes = 0;
+        } else {
+          hours = 12; minutes = 0;
         }
       }
+
       if (hours === undefined) {
         hours = 12; minutes = 0;
       }
-      date.setHours(hours, minutes);
 
+      date.setHours(hours, minutes);
       return date.toISOString();
     } catch (error) {
       console.error('Error parsing date/time:', error);
-      return new Date().toISOString(); // Fallback to current date
       return base.toISOString();
     }
   }
