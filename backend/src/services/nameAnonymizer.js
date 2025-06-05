@@ -18,6 +18,14 @@ class NameAnonymizer {
   }
 
   _generateMessageToken(name) {
+    if (this.speakerMap.has(name)) {
+      const token = this.speakerMap.get(name);
+      this.messageMap.set(name, token);
+      this.messageTokenMap.set(token, name);
+      logger.debug(`Reused speaker token ${token} for text name "${name}"`);
+      return token;
+    }
+
     const token = `p${this.messageMap.size + 1}`;
     this.messageMap.set(name, token);
     this.messageTokenMap.set(token, name);
@@ -72,16 +80,26 @@ class NameAnonymizer {
         doc.match(personName).replaceWith(token);
       });
 
+      textPart = doc.text();
+
+      const phoneRegex = /\+?\d{5,}/g;
+      textPart = textPart.replace(phoneRegex, number => {
+        if (!this.messageMap.has(number)) {
+          this._generateMessageToken(number);
+        }
+        return this.messageMap.get(number);
+      });
+
       if (name) {
         const hyphen = msg.indexOf(' - ');
         const colonIndex = msg.indexOf(':', hyphen !== -1 ? hyphen + 3 : 0);
         if (colonIndex !== -1) {
-          msg = msg.slice(0, colonIndex + 1) + doc.text();
+          msg = msg.slice(0, colonIndex + 1) + textPart;
         } else {
-          msg = doc.text();
+          msg = textPart;
         }
       } else {
-        msg = doc.text();
+        msg = textPart;
       }
 
       return msg;
