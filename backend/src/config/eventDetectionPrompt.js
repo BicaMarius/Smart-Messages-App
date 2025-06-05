@@ -10,6 +10,7 @@ INSTRUCȚIUNI IMPORTANTE:
    - Ignoră mențiuni despre locații curente
    - Concentrează-te pe evenimente care au cel puțin o locație și o oră sau un moment al zilei (dimineața, seara etc.)
    - Ia în considerare doar acele evenimente care au fost confirmate sau acceptate de cel puțin un alt participant
+   - Dacă observi felicitări de tip "la mulți ani" adresate unui participant, deduce că este ziua lui de naștere și adaugă evenimentul chiar dacă nu sunt precizate ora sau locația
 5. Pentru fiecare eveniment detectat:
    - Determină titlul potrivit bazat pe context
    - Extrage data și ora exactă
