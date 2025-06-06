@@ -6,6 +6,8 @@ class NameAnonymizer {
   constructor() {
     this.messageMap = new Map();
     this.messageTokenMap = new Map();
+    this.speakerMap = new Map();
+    this.speakerTokenMap = new Map();
     this.knownNames = new Set();
   }
 
@@ -14,6 +16,14 @@ class NameAnonymizer {
     this.messageMap.set(name, token);
     this.messageTokenMap.set(token, name);
     logger.debug(`Anonymized text name "${name}" as token ${token}`);
+    return token;
+  }
+
+  _generateSpeakerToken(name) {
+    const token = `${tokenPrefixes.speaker}${this.speakerMap.size + 1}`;
+    this.speakerMap.set(name, token);
+    this.speakerTokenMap.set(token, name);
+    logger.debug(`Anonymized speaker "${name}" as token ${token}`);
     return token;
   }
 
@@ -30,16 +40,16 @@ class NameAnonymizer {
       return null;
     };
 
-    // gather all speaker names to improve person detection
+    // gather all speaker names
     messages.forEach(msg => {
       const name = extractName(msg);
-      if (name) {
-        this.knownNames.add(name);
+      if (name && !this.speakerMap.has(name)) {
+        this._generateSpeakerToken(name);
       }
     });
     const words = {};
-    this.knownNames.forEach(n => {
-      words[n] = 'Person';
+    this.speakerMap.forEach((token, name) => {
+      words[name] = 'Person';
     });
     nlp.addWords(words);
 
@@ -47,33 +57,24 @@ class NameAnonymizer {
       let msg = originalMsg;
       const name = extractName(msg);
       let textPart = msg;
+      let prefix = '';
       if (name) {
         const hyphen = msg.indexOf(' - ');
         const colonIndex = msg.indexOf(':', hyphen !== -1 ? hyphen + 3 : 0);
         if (colonIndex !== -1) {
+          prefix = msg.slice(0, colonIndex + 1);
           textPart = msg.slice(colonIndex + 1);
-        } else {
-          textPart = msg;
         }
       }
 
       const doc = nlp(textPart);
-      doc.people().out('array').forEach(personName => {
-        if (!this.messageMap.has(personName)) {
-          this._generateMessageToken(personName);
-        }
-        const token = this.messageMap.get(personName);
-        doc.match(personName).replaceWith(token);
+      this.speakerMap.forEach((token, speakerName) => {
+        doc.match(speakerName).replaceWith(token);
       });
 
       if (name) {
-        const hyphen = msg.indexOf(' - ');
-        const colonIndex = msg.indexOf(':', hyphen !== -1 ? hyphen + 3 : 0);
-        if (colonIndex !== -1) {
-          msg = msg.slice(0, colonIndex + 1) + doc.text();
-        } else {
-          msg = doc.text();
-        }
+        const token = this.speakerMap.get(name);
+        msg = prefix.replace(name, token) + doc.text();
       } else {
         msg = doc.text();
       }
@@ -84,11 +85,17 @@ class NameAnonymizer {
 
   deanonymize(messages) {
     const messageRegex = new RegExp(`${tokenPrefixes.message}\\d+`, 'g');
-    return messages.map(msg => msg.replace(messageRegex, token => this.messageTokenMap.get(token) || token));
+    const speakerRegex = new RegExp(`${tokenPrefixes.speaker}\\d+`, 'g');
+    return messages.map(msg =>
+      msg
+        .replace(speakerRegex, token => this.speakerTokenMap.get(token) || token)
+        .replace(messageRegex, token => this.messageTokenMap.get(token) || token)
+    );
   }
 
   reset() {
-    // no speaker maps to reset
+    this.speakerMap.clear();
+    this.speakerTokenMap.clear();
     this.messageMap.clear();
     this.messageTokenMap.clear();
     this.knownNames.clear();
@@ -96,7 +103,8 @@ class NameAnonymizer {
 
   getMapping() {
     return {
-      messages: Object.fromEntries(this.messageMap)
+      messages: Object.fromEntries(this.messageMap),
+      speakers: Object.fromEntries(this.speakerMap)
     };
   }
 }

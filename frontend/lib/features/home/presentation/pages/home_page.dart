@@ -954,6 +954,8 @@ class _HomePageState extends State<HomePage> {
                                   _selectedPersonByPlatform[currentPlatformName] = person;
                                   _selectedDateByPlatform[currentPlatformName] = null;
                                   _conversationSummaryByPlatform[currentPlatformName] = null;
+                                  _platformEvents[currentPlatformName] = [];
+                                  _eventAddedToCalendar[currentPlatformName] = {};
                                 });
                               },
                               onDateSelected: () => _showDatePicker(currentPlatformName),
