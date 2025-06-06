@@ -56,17 +56,20 @@ class EventDetectionService {
         }
       }
       const rawEvents = Array.isArray(parsed.evenimente) ? parsed.evenimente : [];
-      const unique = new Set();
-      const events = [];
+      const merged = new Map();
 
       rawEvents
         .filter(ev => ev && (ev.location || ev.time || ev.allDay))
         .forEach(ev => {
           const dateTime = this.parseDateTime(ev.date || ev.dates || '', ev.time, referenceDate);
-          const key = `${ev.title}|${dateTime}|${ev.location}`;
-          if (!unique.has(key)) {
-            unique.add(key);
-            events.push({
+          const mergeKey = `${dateTime}|${ev.location || ''}`;
+          const existing = merged.get(mergeKey);
+          if (existing) {
+            if (!existing.title.toLowerCase().includes(ev.title.toLowerCase())) {
+              existing.title = `${existing.title} + ${ev.title}`;
+            }
+          } else {
+            merged.set(mergeKey, {
               title: ev.title,
               dateTime,
               location: ev.location || '',
@@ -75,6 +78,8 @@ class EventDetectionService {
             });
           }
         });
+
+      const events = Array.from(merged.values());
 
       events.forEach(ev =>
         console.log(`Event detected: ${ev.title} on ${ev.dateTime}`)
