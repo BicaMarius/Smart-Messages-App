@@ -42,10 +42,16 @@ class CalendarService {
     if (kIsWeb) {
       return [];
     }
-    
+
     try {
+      final hasPermissions = await requestPermissions();
+      if (!hasPermissions) {
+        return [];
+      }
       final calendarsResult = await _calendarPlugin.retrieveCalendars();
-      return calendarsResult.data ?? [];
+      final calendars = calendarsResult.data ?? [];
+      // Filter out calendars without valid IDs
+      return calendars.where((c) => c.id != null).toList();
     } catch (e) {
       LoggerService.error('Error retrieving calendars: $e');
       return [];
@@ -233,8 +239,12 @@ class CalendarService {
             itemCount: calendars.length,
             itemBuilder: (context, index) {
               final calendar = calendars[index];
+              final name = calendar.name ?? calendar.accountName ?? calendar.accountType;
               return ListTile(
-                title: Text(calendar.name ?? 'Unknown Calendar'),
+                title: Text(name != null && name.isNotEmpty ? name : 'Unknown Calendar'),
+                subtitle: calendar.accountName != null && calendar.accountName!.isNotEmpty
+                    ? Text(calendar.accountName!)
+                    : null,
                 onTap: () => Navigator.of(context).pop(calendar),
               );
             },
