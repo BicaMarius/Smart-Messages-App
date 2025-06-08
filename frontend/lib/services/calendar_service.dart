@@ -42,10 +42,14 @@ class CalendarService {
     if (kIsWeb) {
       return [];
     }
-    
+
     try {
       final calendarsResult = await _calendarPlugin.retrieveCalendars();
-      return calendarsResult.data ?? [];
+      final calendars = calendarsResult.data ?? [];
+      // Filter out calendars without valid IDs or names
+      return calendars
+          .where((c) => c.id != null && (c.name?.isNotEmpty ?? false))
+          .toList();
     } catch (e) {
       LoggerService.error('Error retrieving calendars: $e');
       return [];
