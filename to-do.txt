@@ -56,6 +56,8 @@ Ce am facut?
 - Switch intre cele doua moduri de converstie prin UI sugestiv (este colorat cel selectat curent)
 - Design asemanator cu chat ul din ChatGpt/ Deepseek
 - Daca apesi in afara boxului de typing tastatura se inchide
+- Daca titlul calendarului detectat este identic cu subtitlul atunci nu va mai fi afisat pentru a nu dubla
+- Calendarele din lista raman acum pe un singur rând, iar ce nu încape devine "..." (prin maxLines si overflow)
 
 Ce mai trb sa fac?
  BACKEND:
@@ -79,9 +81,18 @@ Ce mai trb sa fac?
 - *roadmap memory/ custom album
 - functionalitatea butoanelor din Bottom Navigation Bar ( marcaje, home si setari)
 
+NOTA(limitari):
+Anumite functii cum ar fi adaugarea in calendarele depistate din telefon nu merg pe release app apk, ci doar in modul debug
+Asta pentru ca android considera sensitive content si trebuie activata manual permisiunea, deci trebuie niste modificari suplimentare la codul
+Sau posibil sa fie o problema de shrink sau obfuscate desi nu pare pt ca am folosit si flutter build apk --release --no-shrink
+De asemenea mesajele de debug sunt realizare cu Logger deci nu vor fi afisate in release app doar daca sunt inlocuite cu print
+Openrouter permite maxim 50 apeluri pe zi pentru modelele cu free API
+Render.com ofera deploy gratis, insa devine inactiv dupa 15min de nefolosire iar prima cerere va aveam un delay de maxim 1min pana la procesare
+
 Instalare dependinte:
 npm install express body-parser cors dotenv joi chalk (nu mai e nevoie, avem serverul deployed)
 - nu mai conteaza, ele se instaleaza automat de pe serverul unde avem deploy pe render.com printr-un simplu npm install
 Instalare versiune noua de FRONTEND:
 - flutter build apk --release
 - flutter install / trimite apk ul prin mesagerie sau pe MagazinPlay
+sau flutter run pentru debug mode
