@@ -12,6 +12,7 @@ import 'package:frontend/features/home/presentation/widgets/home_widgets/ask_me_
 import 'package:frontend/features/home/presentation/widgets/home_widgets/detected_events_ui.dart';
 import 'package:frontend/features/home/presentation/widgets/home_widgets/dashboard_section.dart';
 import 'package:frontend/services/storage_service.dart';
+import 'package:intl/intl.dart';
 
 class HomePage extends StatefulWidget {
   final Color platformColor;
@@ -106,6 +107,16 @@ class _HomePageState extends State<HomePage> {
     'Instagram': [],
     'WhatsApp': [],
     'Messenger': []
+  };
+
+  /// Limit of messages sent to AI when asking about all conversations.
+  /// Set to null for unlimited.
+  int? _askMessageLimit;
+
+  final Map<String, DateTime?> _trimmedUntilByPlatform = {
+    'Instagram': null,
+    'WhatsApp': null,
+    'Messenger': null,
   };
 
   @override
@@ -735,7 +746,12 @@ class _HomePageState extends State<HomePage> {
                 if (_uploadedFilePathsByPlatform[platformName]?.isNotEmpty == true)
                   ..._uploadedFilePathsByPlatform[platformName]!.map((path) => ListTile(
                         leading: Icon(Icons.insert_drive_file, color: Theme.of(context).colorScheme.primary),
-                        title: Text(path.split('/').last, style: GoogleFonts.poppins()),
+                        title: Text(
+                          path.split('/').last,
+                          style: GoogleFonts.poppins(),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
                         trailing: IconButton(
                           icon: const Icon(Icons.delete, color: Colors.red),
                           onPressed: () {
@@ -772,18 +788,24 @@ class _HomePageState extends State<HomePage> {
 
       if (result != null && result.files.isNotEmpty) {
         final file = result.files.first;
+        final paths = _uploadedFilePathsByPlatform[platformName]!;
+        final alreadyExists = paths.contains(file.path!);
+
         setState(() {
-          final paths = _uploadedFilePathsByPlatform[platformName]!;
-          if (!paths.contains(file.path!)) {
+          if (!alreadyExists) {
             paths.add(file.path!);
           }
         });
+
         await _parseFile(file.path!, platformName);
 
         if (!mounted) return;
+        final message = alreadyExists
+            ? 'File ${file.name} replaced for $platformName'
+            : 'File ${file.name} uploaded for $platformName';
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('File ${file.name} uploaded for $platformName'),
+            content: Text(message),
             duration: const Duration(seconds: 2),
           ),
         );
@@ -831,6 +853,17 @@ class _HomePageState extends State<HomePage> {
           return;
         }
 
+        final trimmedDate = _trimmedUntilByPlatform[platform];
+        if (trimmedDate != null) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                  'Too many messages. We trimmed conversation until '
+                  '${DateFormat('dd/MM/yyyy').format(trimmedDate)}'),
+            ),
+          );
+        }
+
         final answer = await _apiService.askQuestion(messages, question);
         setState(() {
           _askChatLogByPlatform[platform]!.add('Q: $question\nA: $answer');
@@ -861,11 +894,42 @@ class _HomePageState extends State<HomePage> {
     } else {
       // Dacă nu avem o dată selectată, returnăm toate mesajele pentru acea persoană
       final allMessages = <String>[];
-      for (final messages in _conversationMessagesByPlatform[platform]?.values ?? []) {
-        if (messages is List<String>) {
-          allMessages.addAll(messages);
+      final dates = _personDatesByPlatform[platform]?[selectedPerson] ?? [];
+      final sortedDates = List<DateTime>.from(dates)..sort();
+
+      if (_askMessageLimit == null) {
+        for (final date in sortedDates) {
+          allMessages.addAll(
+              _conversationMessagesByPlatform[platform]?[date] ?? []);
         }
+        _trimmedUntilByPlatform[platform] = null;
+        return allMessages;
       }
+
+      // Limitare opțională a numărului de mesaje
+      DateTime? earliestIncluded;
+      int count = 0;
+      final temp = <List<String>>[];
+      for (final date in sortedDates.reversed) {
+        final msgs = _conversationMessagesByPlatform[platform]?[date] ?? [];
+        if (count + msgs.length > _askMessageLimit!) {
+          break;
+        }
+        temp.add(msgs);
+        earliestIncluded = date;
+        count += msgs.length;
+      }
+
+      for (final msgs in temp.reversed) {
+        allMessages.addAll(msgs);
+      }
+
+      if (earliestIncluded != null && earliestIncluded != sortedDates.first) {
+        _trimmedUntilByPlatform[platform] = earliestIncluded;
+      } else {
+        _trimmedUntilByPlatform[platform] = null;
+      }
+
       return allMessages;
     }
   }
@@ -956,6 +1020,9 @@ class _HomePageState extends State<HomePage> {
                                   _conversationSummaryByPlatform[currentPlatformName] = null;
                                   _platformEvents[currentPlatformName] = [];
                                   _eventAddedToCalendar[currentPlatformName] = {};
+                                  _askChatLogByPlatform[currentPlatformName] = [];
+                                  _trimmedUntilByPlatform[currentPlatformName] = null;
+                                  _askControllers[currentPlatformName]!.clear();
                                 });
                               },
                               onDateSelected: () => _showDatePicker(currentPlatformName),
