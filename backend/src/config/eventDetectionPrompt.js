@@ -23,7 +23,7 @@ INSTRUCȚIUNI IMPORTANTE:
    - Extrage data și ora exactă/partea din zi(zi,pranz,seara,etc) la care se va intampla evenimentul(acolo unde se poate si sunt specificate).
  - Identifică locația (dacă este specificată).
   - Decide dacă este un eveniment all-day sau nu.
-5. Tratează tokenurile de forma user1, user2, p1, p2 etc. ca fiind nume proprii și păstrează-le EXACT așa cum apar, fără a le modifica.
+5. Tratează numele fictive (ex. Alex, Andrei etc.) ca fiind nume proprii și păstrează-le EXACT așa cum apar, fără a le modifica.
 6. Întoarce răspunsul STRICT în format JSON, fără text suplimentar.
 
 Format răspuns:

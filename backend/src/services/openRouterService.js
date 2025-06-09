@@ -31,9 +31,44 @@ class OpenRouterService {
   }
 
   async askQuestion(messages, question) {
-    const context = messages.join('\n');
+    let selected = messages;
+    const limit = config.askMessageLimit;
+    if (Number.isFinite(limit) && messages.length > limit) {
+      logger.warn(
+        `Număr mesaje (${messages.length}) depășește limita de ${limit}. Aplicăm trunchiere.`
+      );
+      selected = this._truncateMessages(messages, limit);
+    }
+
+    const context = selected.join('\n');
     const prompt = `${askPrompt}\n\nContext:\n${context}\n\nÎntrebare: ${question}`;
     return this._makeRequest([prompt], askPrompt);
+  }
+
+  _truncateMessages(messages, limit) {
+    const dateRegex = /^(\d{1,2})\.(\d{1,2})\.(\d{4})/;
+    const groups = [];
+    let currentKey = null;
+    let currentGroup = [];
+
+    for (const msg of messages) {
+      const match = msg.match(dateRegex);
+      const key = match ? `${match[1]}.${match[2]}.${match[3]}` : currentKey || 'unknown';
+      if (key !== currentKey) {
+        if (currentGroup.length) groups.push(currentGroup);
+        currentGroup = [];
+        currentKey = key;
+      }
+      currentGroup.push(msg);
+    }
+    if (currentGroup.length) groups.push(currentGroup);
+
+    const result = [];
+    for (const group of groups) {
+      if (result.length + group.length > limit) break;
+      result.push(...group);
+    }
+    return result;
   }
 
   async _makeRequest(messages, systemPrompt) {

@@ -12,7 +12,7 @@ const app = express();
 
 // Middleware
 app.use(cors(config.cors));
-app.use(bodyParser.json());
+app.use(bodyParser.json({ limit: config.bodyParserLimit }));
 app.use(express.static(path.join(__dirname, '../public')));
 app.use(logger);
 
