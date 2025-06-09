@@ -1,30 +1,33 @@
 const logger = require('./loggerService');
 const nlp = require('compromise');
-const { tokenPrefixes } = require('../config/config');
+
+// Listă de nume fictive folosite pentru anonimizare
+const pseudonyms = [
+  'Alex', 'Andrei', 'Bianca', 'Claudia', 'Daniel', 'Elena', 'Florin', 'Gabriela',
+  'Ioana', 'Mihai', 'Oana', 'Paul', 'Radu', 'Simona', 'Tudor', 'Valentin', 'Ana',
+  'Diana', 'George', 'Laura'
+];
 
 class NameAnonymizer {
   constructor() {
-    this.messageMap = new Map();
-    this.messageTokenMap = new Map();
-    this.speakerMap = new Map();
-    this.speakerTokenMap = new Map();
-    this.knownNames = new Set();
+    this.speakerMap = new Map(); // original name -> pseudonym
+    this.speakerTokenMap = new Map(); // pseudonym -> original name
+    this.pseudonymIndex = 0;
   }
 
-  _generateMessageToken(name) {
-    const token = `${tokenPrefixes.message}${this.messageMap.size + 1}`;
-    this.messageMap.set(name, token);
-    this.messageTokenMap.set(token, name);
-    logger.debug(`Anonymized text name "${name}" as token ${token}`);
-    return token;
+  _nextPseudonym() {
+    const idx = this.pseudonymIndex++;
+    const base = pseudonyms[idx % pseudonyms.length];
+    const suffix = idx >= pseudonyms.length ? idx - pseudonyms.length + 1 : '';
+    return `${base}${suffix}`;
   }
 
   _generateSpeakerToken(name) {
-    const token = `${tokenPrefixes.speaker}${this.speakerMap.size + 1}`;
-    this.speakerMap.set(name, token);
-    this.speakerTokenMap.set(token, name);
-    logger.debug(`Anonymized speaker "${name}" as token ${token}`);
-    return token;
+    const pseudonym = this._nextPseudonym();
+    this.speakerMap.set(name, pseudonym);
+    this.speakerTokenMap.set(pseudonym, name);
+    logger.debug(`Anonymized speaker "${name}" as pseudonym "${pseudonym}"`);
+    return pseudonym;
   }
 
   anonymize(messages) {
@@ -40,15 +43,16 @@ class NameAnonymizer {
       return null;
     };
 
-    // gather all speaker names
+    // gather all speaker names and pregenerate pseudonyms
     messages.forEach(msg => {
       const name = extractName(msg);
       if (name && !this.speakerMap.has(name)) {
         this._generateSpeakerToken(name);
       }
     });
+
     const words = {};
-    this.speakerMap.forEach((token, name) => {
+    this.speakerMap.forEach((pseudo, name) => {
       words[name] = 'Person';
     });
     nlp.addWords(words);
@@ -84,26 +88,23 @@ class NameAnonymizer {
   }
 
   deanonymize(messages) {
-    const messageRegex = new RegExp(`${tokenPrefixes.message}\\d+`, 'g');
-    const speakerRegex = new RegExp(`${tokenPrefixes.speaker}\\d+`, 'g');
-    return messages.map(msg =>
-      msg
-        .replace(speakerRegex, token => this.speakerTokenMap.get(token) || token)
-        .replace(messageRegex, token => this.messageTokenMap.get(token) || token)
-    );
+    return messages.map(msg => {
+      this.speakerTokenMap.forEach((original, pseudo) => {
+        const regex = new RegExp(pseudo, 'g');
+        msg = msg.replace(regex, original);
+      });
+      return msg;
+    });
   }
 
   reset() {
     this.speakerMap.clear();
     this.speakerTokenMap.clear();
-    this.messageMap.clear();
-    this.messageTokenMap.clear();
-    this.knownNames.clear();
+    this.pseudonymIndex = 0;
   }
 
   getMapping() {
     return {
-      messages: Object.fromEntries(this.messageMap),
       speakers: Object.fromEntries(this.speakerMap)
     };
   }

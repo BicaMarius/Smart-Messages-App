@@ -10,6 +10,10 @@ module.exports = {
         temperature: 0.7,
         // maxTokens: 800
     },
+    askMessageLimit: process.env.ASK_MESSAGE_LIMIT
+        ? parseInt(process.env.ASK_MESSAGE_LIMIT, 10)
+        : Infinity,
+    bodyParserLimit: process.env.BODY_PARSER_LIMIT || '10mb',
     tokenPrefixes: {
         speaker: 'user',
         message: 'p'
