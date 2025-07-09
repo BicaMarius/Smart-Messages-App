@@ -72,54 +72,60 @@ class OpenRouterService {
   }
 
   async _makeRequest(messages, systemPrompt) {
-    try {
-      logger.debug(`Se face request către OpenRouter API...`);
-      logger.debug(`Număr mesaje procesate: ${messages.length}`);
+    logger.debug(`Se face request către OpenRouter API...`);
+    logger.debug(`Număr mesaje procesate: ${messages.length}`);
 
-      logger.debug('Anonimizare mesaje...');
-      const anonymizedMessages = nameAnonymizer.anonymize(messages);
-      logger.debug('Mesaje anonimizate');
-      logger.debug(`Mesaje anonimizate:\n${anonymizedMessages.join('\n')}`);
-      logger.debug(`Mapare nume: ${JSON.stringify(nameAnonymizer.getMapping())}`);
+    // Anonimizăm o singură dată pentru a păstra aceeași mapare la retry
+    logger.debug('Anonimizare mesaje...');
+    const anonymizedMessages = nameAnonymizer.anonymize(messages);
+    logger.debug('Mesaje anonimizate');
+    logger.debug(`Mesaje anonimizate:\n${anonymizedMessages.join('\n')}`);
+    logger.debug(`Mapare nume: ${JSON.stringify(nameAnonymizer.getMapping())}`);
 
-      const response = await axios.post(
-        `${this.baseUrl}/chat/completions`,
-        {
-          model: config.openRouterApi.model,
-          messages: [
-            {
-              role: "system",
-              content: systemPrompt
-            },
-            {
-              role: "user",
-              content: anonymizedMessages.join('\n')
+    const payload = {
+      model: config.openRouterApi.model,
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: anonymizedMessages.join('\n') }
+      ],
+      temperature: config.openRouterApi.temperature
+    };
+
+    for (let attempt = 1; attempt <= config.openRouterRetryCount; attempt++) {
+      try {
+        const response = await axios.post(
+          `${this.baseUrl}/chat/completions`,
+          payload,
+          {
+            headers: {
+              'Authorization': `Bearer ${this.apiKey}`,
+              'HTTP-Referer': '*',
+              'Content-Type': 'application/json'
             }
-          ],
-          temperature: config.openRouterApi.temperature,
-        },
-        {
-          headers: {
-            'Authorization': `Bearer ${this.apiKey}`,
-            'HTTP-Referer': '*',
-            'Content-Type': 'application/json'
           }
+        );
+
+        logger.debug('Răspuns primit de la OpenRouter API');
+        logger.debug(`Status răspuns: ${response.status}`);
+
+        const aiMessage = response.data.choices[0].message.content;
+        const deAnonymized = nameAnonymizer.deanonymize([aiMessage])[0];
+        logger.debug(`Mesaj de-anonimizat:\n${deAnonymized}`);
+
+        nameAnonymizer.reset();
+        return deAnonymized;
+      } catch (error) {
+        logger.error(
+          `Eroare la apelul OpenRouter API (încercarea ${attempt}): ${error.message}`
+        );
+        if (attempt === config.openRouterRetryCount) {
+          nameAnonymizer.reset();
+          throw error;
         }
-      );
-
-      logger.debug('Răspuns primit de la OpenRouter API');
-      logger.debug(`Status răspuns: ${response.status}`);
-
-      const aiMessage = response.data.choices[0].message.content;
-      const deAnonymized = nameAnonymizer.deanonymize([aiMessage])[0];
-      logger.debug(`Mesaj de-anonimizat:\n${deAnonymized}`);
-
-      nameAnonymizer.reset();
-
-      return deAnonymized;
-    } catch (error) {
-      logger.error(`Eroare la apelul OpenRouter API: ${error.message}`);
-      throw error;
+        const delay = 1000 * attempt;
+        logger.warning(`Reîncercare după ${delay}ms...`);
+        await new Promise(res => setTimeout(res, delay));
+      }
     }
   }
 }

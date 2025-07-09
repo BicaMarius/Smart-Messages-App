@@ -10,6 +10,10 @@ module.exports = {
         temperature: 0.7,
         // maxTokens: 800
     },
+    // Numărul de încercări la apelurile către OpenRouter în caz de erori
+    openRouterRetryCount: process.env.OPENROUTER_RETRY_COUNT
+        ? parseInt(process.env.OPENROUTER_RETRY_COUNT, 10)
+        : 3,
     askMessageLimit: process.env.ASK_MESSAGE_LIMIT
         ? parseInt(process.env.ASK_MESSAGE_LIMIT, 10)
         : Infinity,
