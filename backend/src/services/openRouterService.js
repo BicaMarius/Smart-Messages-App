@@ -23,10 +23,12 @@ class OpenRouterService {
 
   async detectEvents(messages) {
     logger.ai('Inițializare detectare evenimente...');
-    
-    const response = await this._makeRequest(messages, eventDetectionPrompt);
+
+    const response = await this._makeRequest(messages, eventDetectionPrompt, {
+      responseFormat: { type: 'json_object' }
+    });
     logger.success('Evenimente detectate cu succes');
-    
+
     return response;
   }
 
@@ -71,7 +73,7 @@ class OpenRouterService {
     return result;
   }
 
-  async _makeRequest(messages, systemPrompt) {
+  async _makeRequest(messages, systemPrompt, options = {}) {
     logger.debug(`Se face request către OpenRouter API...`);
     logger.debug(`Număr mesaje procesate: ${messages.length}`);
 
@@ -90,6 +92,13 @@ class OpenRouterService {
       ],
       temperature: config.openRouterApi.temperature
     };
+
+    if (options.responseFormat) {
+      payload.response_format = options.responseFormat;
+    }
+    if (options.maxTokens) {
+      payload.max_tokens = options.maxTokens;
+    }
 
     for (let attempt = 1; attempt <= config.openRouterRetryCount; attempt++) {
       try {
