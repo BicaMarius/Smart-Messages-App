@@ -1,4 +1,5 @@
 const { jsonrepair } = require('jsonrepair');
+const logger = require('./loggerService');
 
 class EventDetectionService {
   getReferenceDate(messages) {
@@ -13,7 +14,8 @@ class EventDetectionService {
   }
 
   async extractEvents(aiResponse, referenceDate = new Date()) {
-    console.log('Extracting events from AI response...');
+    logger.ai('Extracting events from AI response...');
+    logger.debug(`AI response raw:\n${aiResponse}`);
 
     try {
       let jsonStr = aiResponse;
@@ -43,6 +45,7 @@ class EventDetectionService {
       if (extracted) {
         jsonStr = extracted;
       }
+      logger.debug(`JSON to parse:\n${jsonStr}`);
 
       let parsed;
       try {
@@ -51,10 +54,11 @@ class EventDetectionService {
         try {
           parsed = JSON.parse(jsonrepair(jsonStr));
         } catch (repairErr) {
-          console.error('Error repairing JSON:', repairErr);
+          logger.error(`Error repairing JSON: ${repairErr}`);
           throw err;
         }
       }
+      logger.debug(`Parsed events object: ${JSON.stringify(parsed)}`);
       const rawEvents = Array.isArray(parsed.evenimente) ? parsed.evenimente : [];
       const merged = new Map();
 
@@ -82,12 +86,12 @@ class EventDetectionService {
       const events = Array.from(merged.values());
 
       events.forEach(ev =>
-        console.log(`Event detected: ${ev.title} on ${ev.dateTime}`)
+        logger.event(`Event detected: ${ev.title} on ${ev.dateTime}`)
       );
 
       return { events };
     } catch (error) {
-      console.error('Error in extractEvents:', error);
+      logger.error(`Error in extractEvents: ${error}`);
       return { events: [] };
     }
   }
@@ -159,10 +163,9 @@ class EventDetectionService {
       date.setHours(hours, minutes);
       return date.toISOString();
     } catch (error) {
-      console.error('Error parsing date/time:', error);
+      logger.error(`Error parsing date/time: ${error}`);
       return base.toISOString();
     }
   }
 }
-
 module.exports = new EventDetectionService(); 
