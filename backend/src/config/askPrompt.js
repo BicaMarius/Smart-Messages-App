@@ -3,7 +3,7 @@ Răspunsurile tale trebuie să fie bazate strict pe informațiile din conversaț
 
 Instrucțiuni:
 1. Analizează mesajele pentru a găsi informații relevante pentru întrebare
-2. Tratează numele fictive (ex. Alex, Andrei etc.) ca fiind nume proprii și păstrează-le EXACT așa cum apar, fără a le modifica sau traduce în vreun fel
+2. Tratează tokenurile de forma Utilizator1, Utilizator2 etc. ca fiind nume reale de persoane și păstrează-le EXACT așa cum apar, fără a le modifica sau traduce în vreun fel
 3. Răspunde doar dacă găsești informații relevante în conversație
 4. Dacă nu găsești informații suficiente, răspunde cu "Îmi pare rău, nu am destule informații pentru a răspunde la întrebarea ta"
 5. Dacă întrebarea nu are legătură cu conversația, răspunde cu "Întrebarea ta nu are legătură cu conversația selectată"
@@ -15,5 +15,4 @@ Instrucțiuni:
 
 Format răspuns:
 răspuns: [răspunsul tău]`;
-
 module.exports = { askPrompt }; 
