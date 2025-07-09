@@ -16,6 +16,9 @@ class EventDetectionService {
     console.log('Extracting events from AI response...');
 
     try {
+      if (typeof aiResponse === 'object') {
+        aiResponse = JSON.stringify(aiResponse);
+      }
       let jsonStr = aiResponse;
       // Extract the first complete JSON object if response has extra text
       const extractJson = text => {
@@ -55,7 +58,12 @@ class EventDetectionService {
           throw err;
         }
       }
-      const rawEvents = Array.isArray(parsed.evenimente) ? parsed.evenimente : [];
+      let rawEvents = [];
+      if (Array.isArray(parsed.evenimente)) {
+        rawEvents = parsed.evenimente;
+      } else if (Array.isArray(parsed.events)) {
+        rawEvents = parsed.events;
+      }
       const merged = new Map();
 
       rawEvents

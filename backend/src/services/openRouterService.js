@@ -23,10 +23,14 @@ class OpenRouterService {
 
   async detectEvents(messages) {
     logger.ai('Inițializare detectare evenimente...');
-    
-    const response = await this._makeRequest(messages, eventDetectionPrompt);
+
+    const response = await this._makeRequest(messages, eventDetectionPrompt, {
+      responseFormat: { type: 'json_object' },
+      maxTokens: 500,
+      expectJson: true
+    });
     logger.success('Evenimente detectate cu succes');
-    
+
     return response;
   }
 
@@ -71,7 +75,7 @@ class OpenRouterService {
     return result;
   }
 
-  async _makeRequest(messages, systemPrompt) {
+  async _makeRequest(messages, systemPrompt, options = {}) {
     logger.debug(`Se face request către OpenRouter API...`);
     logger.debug(`Număr mesaje procesate: ${messages.length}`);
 
@@ -91,6 +95,13 @@ class OpenRouterService {
       temperature: config.openRouterApi.temperature
     };
 
+    if (options.responseFormat) {
+      payload.response_format = options.responseFormat;
+    }
+    if (options.maxTokens) {
+      payload.max_tokens = options.maxTokens;
+    }
+
     for (let attempt = 1; attempt <= config.openRouterRetryCount; attempt++) {
       try {
         const response = await axios.post(
@@ -109,10 +120,27 @@ class OpenRouterService {
         logger.debug(`Status răspuns: ${response.status}`);
 
         const aiMessage = response.data.choices[0].message.content;
-        const deAnonymized = nameAnonymizer.deanonymize([aiMessage])[0];
+        let deAnonymized = nameAnonymizer.deanonymize([aiMessage])[0];
         logger.debug(`Mesaj de-anonimizat:\n${deAnonymized}`);
 
         nameAnonymizer.reset();
+
+        if (options.expectJson) {
+          try {
+            const { jsonrepair } = require('jsonrepair');
+            const parsed = JSON.parse(deAnonymized);
+            return parsed;
+          } catch (err) {
+            try {
+              const { jsonrepair } = require('jsonrepair');
+              return JSON.parse(jsonrepair(deAnonymized));
+            } catch (err2) {
+              logger.error('Eroare la parsarea răspunsului JSON');
+              return deAnonymized;
+            }
+          }
+        }
+
         return deAnonymized;
       } catch (error) {
         logger.error(

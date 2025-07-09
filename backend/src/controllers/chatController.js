@@ -21,7 +21,7 @@ class ChatController {
       logger.ai('Inițializare detectare evenimente...');
       const eventsResponse = await openRouterService.detectEvents(messages);
       logger.success('Evenimente detectate cu succes');
-      logger.debug(`Răspuns evenimente: ${eventsResponse}`);
+      logger.debug(`Răspuns evenimente: ${typeof eventsResponse === 'string' ? eventsResponse : JSON.stringify(eventsResponse)}`);
 
       // Procesăm evenimentele
       const referenceDate = eventDetectionService.getReferenceDate(messages);
