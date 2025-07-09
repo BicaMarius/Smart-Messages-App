@@ -8,7 +8,9 @@ module.exports = {
         apiKey: process.env.OPENROUTER_API_KEY,
         model: "meta-llama/llama-4-scout:free",
         temperature: 0.7,
-        // maxTokens: 800
+        maxTokens: process.env.OPENROUTER_MAX_TOKENS
+            ? parseInt(process.env.OPENROUTER_MAX_TOKENS, 10)
+            : 1024
     },
     askMessageLimit: process.env.ASK_MESSAGE_LIMIT
         ? parseInt(process.env.ASK_MESSAGE_LIMIT, 10)

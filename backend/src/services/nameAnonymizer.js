@@ -1,13 +1,6 @@
 const logger = require('./loggerService');
 const nlp = require('compromise');
 
-// Listă de nume fictive folosite pentru anonimizare
-const pseudonyms = [
-  'Alex', 'Andrei', 'Bianca', 'Claudia', 'Daniel', 'Elena', 'Florin', 'Gabriela',
-  'Ioana', 'Mihai', 'Oana', 'Paul', 'Radu', 'Simona', 'Tudor', 'Valentin', 'Ana',
-  'Diana', 'George', 'Laura'
-];
-
 class NameAnonymizer {
   constructor() {
     this.speakerMap = new Map(); // original name -> pseudonym
@@ -16,10 +9,9 @@ class NameAnonymizer {
   }
 
   _nextPseudonym() {
-    const idx = this.pseudonymIndex++;
-    const base = pseudonyms[idx % pseudonyms.length];
-    const suffix = idx >= pseudonyms.length ? idx - pseudonyms.length + 1 : '';
-    return `${base}${suffix}`;
+    const pseudonym = `utilizator${this.pseudonymIndex + 1}`;
+    this.pseudonymIndex += 1;
+    return pseudonym;
   }
 
   _generateSpeakerToken(name) {

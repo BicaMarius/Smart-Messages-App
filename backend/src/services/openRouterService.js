@@ -72,54 +72,64 @@ class OpenRouterService {
   }
 
   async _makeRequest(messages, systemPrompt) {
-    try {
-      logger.debug(`Se face request către OpenRouter API...`);
-      logger.debug(`Număr mesaje procesate: ${messages.length}`);
+    logger.debug(`Se face request către OpenRouter API...`);
+    logger.debug(`Număr mesaje procesate: ${messages.length}`);
 
-      logger.debug('Anonimizare mesaje...');
-      const anonymizedMessages = nameAnonymizer.anonymize(messages);
-      logger.debug('Mesaje anonimizate');
-      logger.debug(`Mesaje anonimizate:\n${anonymizedMessages.join('\n')}`);
-      logger.debug(`Mapare nume: ${JSON.stringify(nameAnonymizer.getMapping())}`);
+    logger.debug('Anonimizare mesaje...');
+    const anonymizedMessages = nameAnonymizer.anonymize(messages);
+    logger.debug('Mesaje anonimizate');
+    logger.debug(`Mesaje anonimizate:\n${anonymizedMessages.join('\n')}`);
+    logger.debug(`Mapare nume: ${JSON.stringify(nameAnonymizer.getMapping())}`);
 
-      const response = await axios.post(
-        `${this.baseUrl}/chat/completions`,
-        {
-          model: config.openRouterApi.model,
-          messages: [
-            {
-              role: "system",
-              content: systemPrompt
-            },
-            {
-              role: "user",
-              content: anonymizedMessages.join('\n')
-            }
-          ],
-          temperature: config.openRouterApi.temperature,
-        },
-        {
-          headers: {
-            'Authorization': `Bearer ${this.apiKey}`,
-            'HTTP-Referer': '*',
-            'Content-Type': 'application/json'
-          }
+    const payload = {
+      model: config.openRouterApi.model,
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: anonymizedMessages.join('\n') }
+      ],
+      temperature: config.openRouterApi.temperature
+    };
+
+    if (Number.isFinite(config.openRouterApi.maxTokens)) {
+      payload.max_tokens = config.openRouterApi.maxTokens;
+    }
+
+    const headers = {
+      Authorization: `Bearer ${this.apiKey}`,
+      'HTTP-Referer': '*',
+      'Content-Type': 'application/json'
+    };
+
+    for (let attempt = 1; attempt <= 3; attempt++) {
+      try {
+        logger.debug(`Se face request către OpenRouter API... încercarea ${attempt}`);
+        const response = await axios.post(
+          `${this.baseUrl}/chat/completions`,
+          payload,
+          { headers, timeout: 20000 }
+        );
+
+        logger.debug('Răspuns primit de la OpenRouter API');
+        logger.debug(`Status răspuns: ${response.status}`);
+
+        const aiMessage = response.data.choices[0].message.content;
+        const deAnonymized = nameAnonymizer.deanonymize([aiMessage])[0];
+        logger.debug(`Mesaj de-anonimizat:\n${deAnonymized}`);
+
+        nameAnonymizer.reset();
+        return deAnonymized;
+      } catch (error) {
+        const status = error.response?.status;
+        logger.error(`Eroare la apelul OpenRouter API: ${error.message}`);
+        if (attempt < 3 && (status === 503 || status === 500 || status === 429)) {
+          const delay = attempt * 1000;
+          logger.warning(`Încercare din nou după ${delay}ms...`);
+          await new Promise(res => setTimeout(res, delay));
+          continue;
         }
-      );
-
-      logger.debug('Răspuns primit de la OpenRouter API');
-      logger.debug(`Status răspuns: ${response.status}`);
-
-      const aiMessage = response.data.choices[0].message.content;
-      const deAnonymized = nameAnonymizer.deanonymize([aiMessage])[0];
-      logger.debug(`Mesaj de-anonimizat:\n${deAnonymized}`);
-
-      nameAnonymizer.reset();
-
-      return deAnonymized;
-    } catch (error) {
-      logger.error(`Eroare la apelul OpenRouter API: ${error.message}`);
-      throw error;
+        nameAnonymizer.reset();
+        throw error;
+      }
     }
   }
 }

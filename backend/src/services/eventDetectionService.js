@@ -1,4 +1,5 @@
 const { jsonrepair } = require('jsonrepair');
+const logger = require('./loggerService');
 
 class EventDetectionService {
   getReferenceDate(messages) {
@@ -13,7 +14,7 @@ class EventDetectionService {
   }
 
   async extractEvents(aiResponse, referenceDate = new Date()) {
-    console.log('Extracting events from AI response...');
+    logger.debug('Extracting events from AI response...');
 
     try {
       let jsonStr = aiResponse;
@@ -51,7 +52,7 @@ class EventDetectionService {
         try {
           parsed = JSON.parse(jsonrepair(jsonStr));
         } catch (repairErr) {
-          console.error('Error repairing JSON:', repairErr);
+          logger.error(`Error repairing JSON: ${repairErr.message}`);
           throw err;
         }
       }
@@ -81,13 +82,13 @@ class EventDetectionService {
 
       const events = Array.from(merged.values());
 
-      events.forEach(ev =>
-        console.log(`Event detected: ${ev.title} on ${ev.dateTime}`)
-      );
+      events.forEach(ev => {
+        logger.event(`Event detected: ${ev.title} on ${ev.dateTime}`);
+      });
 
       return { events };
     } catch (error) {
-      console.error('Error in extractEvents:', error);
+      logger.error(`Error in extractEvents: ${error.message}`);
       return { events: [] };
     }
   }
@@ -159,10 +160,9 @@ class EventDetectionService {
       date.setHours(hours, minutes);
       return date.toISOString();
     } catch (error) {
-      console.error('Error parsing date/time:', error);
+      logger.error(`Error parsing date/time: ${error.message}`);
       return base.toISOString();
     }
   }
 }
-
 module.exports = new EventDetectionService(); 
