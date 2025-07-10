@@ -31,6 +31,9 @@ Ce am facut?
 - Acum openRouterService folosește acest serviciu pentru a anonimiza mesajele, loghează rezultatul și deanonimizează răspunsul API
 - Am eliminat codul redundant de encryption middleware
 - Am adaugat un .gitignore pentru folderul principal pentru a nu mai da push inutil la folderul .idea
+- Acum fiecare cerere de detectare a evenimentelor, serviciul încearcă de până la 3 ori (back off simplu)
+- Am setat temperature la 0.3 pentru răspunsuri constante mai similare, mai puțină creativitate și șanse mai mici de răspunsuri incomplete
+- Am modificat puțin prompturile pentru instrucțiuni mai clare și mai extinse
 
  FRONTEND:
 - AppBar personalizat cu titlu centrat și iconițe la stânga/dreapta
@@ -69,7 +72,7 @@ Ce mai trb sa fac?
  - *pt panelul de whatsApp afisarea stikerelor si posibilitatea salvarii lor
  - *detectare si interpretare imagini si video
  - *pot adauga un memory roadmap/ custom album bazat pe "amintirile salvate" adica mesajele sumarizate salvate
- - pot adauga functia de salvare a sumarizarilor printr-un icon cu o steluta => baze de date cu login?
+ - *pot adauga functia de salvare a sumarizarilor printr-un icon cu o steluta => baze de date cu login?
 
  FRONTEND:
 - *statistica pt mesaje
@@ -79,7 +82,7 @@ Ce mai trb sa fac?
 - *pagina de favorite si de home ca user nou
 - *posibilitatea de salvare mesaje favorite prin icon steluta/ inimioara
 - *roadmap memory/ custom album
-- functionalitatea butoanelor din Bottom Navigation Bar ( marcaje, home si setari)
+- *functionalitatea butoanelor din Bottom Navigation Bar ( marcaje, home si setari)
 
 NOTA(limitari):
 Anumite functii cum ar fi adaugarea in calendarele depistate din telefon nu merg pe release app apk, ci doar in modul debug

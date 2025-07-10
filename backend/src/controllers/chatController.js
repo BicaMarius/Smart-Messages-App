@@ -1,48 +1,41 @@
-const openRouterService = require('../services/openRouterService');
-const eventDetectionService = require('../services/eventDetectionService');
+const openRouter = require('../services/openRouterService');
+const eventsSvc = require('../services/eventDetectionService');
 const logger = require('../services/loggerService');
 
 class ChatController {
   async summarize(req, res) {
     try {
       const { messages } = req.body;
-      logger.info('Primit request pentru sumarizare mesaje');
+      logger.info('Primit request pentru **sumarizare**');
       logger.debug(`Număr mesaje: ${messages.length}`);
-      logger.debug(`Primul mesaj: ${messages[0]}`);
-      logger.debug(`Ultimul mesaj: ${messages[messages.length - 1]}`);
+      logger.debug(`Primul   msg: ${messages[0]}`);
+      logger.debug(`Ultimul  msg: ${messages[messages.length - 1]}`);
 
-      // Generăm rezumatul
-      logger.ai('Inițializare generare rezumat...');
-      const summaryResponse = await openRouterService.generateSummary(messages);
+      const summaryRaw = await openRouter.generateSummary(messages);
       logger.success('Rezumat generat cu succes');
-      logger.debug(`Rezumat generat: ${summaryResponse}`);
+      logger.debug(`Rezumat (raw):\n${summaryRaw}`);
 
-      // Detectăm evenimentele
-      logger.ai('Inițializare detectare evenimente...');
-      const eventsResponse = await openRouterService.detectEvents(messages);
-      logger.success('Evenimente detectate cu succes');
-      logger.debug(`Răspuns evenimente: ${eventsResponse}`);
+      const evRaw = await openRouter.detectEventsWithRetry(messages);
+      logger.debug(`detectEvents › răspuns:\n${evRaw}`);
 
-      // Procesăm evenimentele
-      const referenceDate = eventDetectionService.getReferenceDate(messages);
-      const { events } = await eventDetectionService.extractEvents(eventsResponse, referenceDate);
+      const refDate = eventsSvc.getReferenceDate(messages);
+      const { events } = await eventsSvc.extractEvents(evRaw, refDate);
 
-      // Logăm evenimentele detectate
-      if (events.length > 0) {
-        logger.event(`S-au detectat ${events.length} evenimente:`);
-        events.forEach((event, index) => {
-          logger.event(`${index + 1}. ${event.title}, data: ${event.dateTime}`);
-        });
+      if (events.length) {
+        events.forEach((e, i) =>
+          logger.event(`${i + 1}. ${e.title} @ ${e.dateTime}`)
+        );
       } else {
         logger.info('Nu s-au detectat evenimente');
       }
 
-      res.json({ 
-        summary: summaryResponse.replace('sumarizare:', '').trim(),
+      res.json({
+        summary: summaryRaw.replace(/^sumarizare:\s*/i, '').trim(),
         events
       });
-    } catch (error) {
-      logger.error(`Eroare în funcția summarize: ${error.message}`);
+
+    } catch (err) {
+      logger.error(`Eroare în funcția summarize: ${err.message}`);
       res.status(500).json({ error: 'Eroare internă a serverului' });
     }
   }
@@ -50,28 +43,16 @@ class ChatController {
   async askQuestion(req, res) {
     try {
       const { messages, question } = req.body;
-      logger.info('Primit request pentru întrebare');
+      logger.info('Primit request pentru **întrebare**');
       logger.debug(`Întrebare: ${question}`);
-      logger.debug(`Număr mesaje: ${messages.length}`);
-      logger.debug(`IP client: ${req.ip}`);
-      logger.debug(`Headers: ${JSON.stringify(req.headers)}`);
 
-      // Generăm răspunsul
-      logger.ai('Inițializare generare răspuns...');
-      const response = await openRouterService.askQuestion(messages, question);
-      logger.success('Răspuns generat cu succes');
-      logger.debug(`Răspuns generat: ${response}`);
-
-      // Extragem răspunsul din formatul specificat
-      const answer = response.replace('răspuns:', '').trim();
-
-      res.json({ answer });
-    } catch (error) {
-      logger.error(`Eroare în funcția askQuestion: ${error.message}`);
-      logger.error(`Stack trace: ${error.stack}`);
+      const answerRaw = await openRouter.askQuestion(messages, question);
+      res.json({ answer: answerRaw.replace(/^răspuns:\s*/i, '').trim() });
+    } catch (err) {
+      logger.error(`Eroare în funcția askQuestion: ${err.message}`);
       res.status(500).json({ error: 'Eroare internă a serverului' });
     }
   }
 }
 
-module.exports = new ChatController(); 
+module.exports = new ChatController();

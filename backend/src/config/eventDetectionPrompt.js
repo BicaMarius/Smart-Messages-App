@@ -24,11 +24,11 @@ INSTRUCȚIUNI IMPORTANTE:
  - Identifică locația (dacă este specificată).
   - Decide dacă este un eveniment all-day sau nu.
 5. Tratează numele fictive (ex. Alex, Andrei etc.) ca fiind nume proprii și păstrează-le EXACT așa cum apar, fără a le modifica.
-6. Întoarce răspunsul STRICT în format JSON, fără text suplimentar.
-
-Format răspuns:
+6. IMPORTANT: Vreau ca răspunsul tău să întoarcă DIRECT SI STRICT formatul JSON din model, fără nici un alt cuvânt sau text suplimentar.
+Acolo unde nu există date suficiente(de ex time,location) poți pune null.
+Formatul răspunsului returnat:
 {"evenimente": [
-  {"title": "Titlu", "date": "DD/MM/YYYY", "time": "HH:MM", "location": "Locație", "allDay": false}
+  {"title": "Titlu_eveniment", "date": "DD/MM/YYYY", "time": "HH:MM", "location": "Locație_aferenta", "allDay": false/true}
 ]}
 
 Dacă nu există evenimente relevante, returnează:

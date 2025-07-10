@@ -7,7 +7,7 @@ module.exports = {
         baseUrl: 'https://openrouter.ai/api/v1',
         apiKey: process.env.OPENROUTER_API_KEY,
         model: "meta-llama/llama-4-scout:free",
-        temperature: 0.7,
+        temperature: 0.3,
         // maxTokens: 800
     },
     askMessageLimit: process.env.ASK_MESSAGE_LIMIT
