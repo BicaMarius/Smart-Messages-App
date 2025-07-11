@@ -5,7 +5,7 @@ import 'package:frontend/services/logger_service.dart';
 
 class ApiService {
   // ================== CONFIG ==================
-  static const int _timeoutSeconds = 10;
+  static const int _timeoutSeconds = 25;
   static const String _baseUrl = 'https://smart-messages-app.onrender.com/api';
   // ============================================
 
