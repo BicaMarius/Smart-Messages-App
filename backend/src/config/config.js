@@ -6,7 +6,7 @@ module.exports = {
     openRouterApi: {
         baseUrl: 'https://openrouter.ai/api/v1',
         apiKey: process.env.OPENROUTER_API_KEY,
-        model: "meta-llama/llama-4-scout:free",
+        model: "deepseek/deepseek-r1-0528:free",
         temperature: 0.3,
         maxTokens: 1000
     },
