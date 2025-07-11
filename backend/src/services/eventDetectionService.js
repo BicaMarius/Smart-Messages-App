@@ -1,4 +1,5 @@
 const { jsonrepair } = require('jsonrepair');
+const logger = require('./loggerService');
 
 class EventDetectionService {
   getReferenceDate(messages) {
@@ -13,10 +14,24 @@ class EventDetectionService {
   }
 
   async extractEvents(aiResponse, referenceDate = new Date()) {
-    console.log('Extracting events from AI response...');
+    logger.debug('Extracting events from AI response...');
+    logger.debug(`Răspuns AI brut pentru procesare: ${aiResponse}`);
 
     try {
-      let jsonStr = aiResponse;
+      // Verificăm dacă răspunsul este complet
+      if (!aiResponse || aiResponse.trim() === '') {
+        logger.warn('Răspuns gol de la AI pentru detectarea evenimentelor');
+        return { events: [] };
+      }
+
+      let jsonStr = aiResponse.trim();
+      
+      // Verificăm dacă răspunsul pare să fie incomplet
+      if (jsonStr.includes('"evenimente":') && !jsonStr.includes(']')) {
+        logger.warn('Răspuns incomplet detectat - pare să se fi întrerupt');
+        return { events: [] };
+      }
+
       // Extract the first complete JSON object if response has extra text
       const extractJson = text => {
         const start = text.indexOf('{');
@@ -40,26 +55,52 @@ class EventDetectionService {
           extracted = aiResponse.slice(startIdx, endIdx + 1);
         }
       }
+      
       if (extracted) {
         jsonStr = extracted;
       }
 
+      logger.debug(`JSON extras pentru procesare: ${jsonStr}`);
+
       let parsed;
       try {
         parsed = JSON.parse(jsonStr);
+        logger.debug('JSON parsat cu succes');
       } catch (err) {
+        logger.warn('Eroare la parsarea JSON, încercăm repararea...');
         try {
-          parsed = JSON.parse(jsonrepair(jsonStr));
+          const repairedJson = jsonrepair(jsonStr);
+          logger.debug(`JSON reparat: ${repairedJson}`);
+          parsed = JSON.parse(repairedJson);
+          logger.debug('JSON reparat și parsat cu succes');
         } catch (repairErr) {
-          console.error('Error repairing JSON:', repairErr);
+          logger.error('Eroare la repararea JSON:', repairErr);
+          logger.error('JSON original care a cauzat eroarea:', jsonStr);
           throw err;
         }
       }
+
+      // Verificăm dacă avem proprietatea "evenimente"
+      if (!parsed.hasOwnProperty('evenimente')) {
+        logger.warn('Răspunsul nu conține proprietatea "evenimente"');
+        return { events: [] };
+      }
+
       const rawEvents = Array.isArray(parsed.evenimente) ? parsed.evenimente : [];
+      logger.debug(`Număr evenimente raw detectate: ${rawEvents.length}`);
+
       const merged = new Map();
 
       rawEvents
-        .filter(ev => ev && (ev.location || ev.time || ev.allDay))
+        .filter(ev => {
+          if (!ev) return false;
+          const hasContent = ev.title || ev.location || ev.time || ev.allDay;
+          if (!hasContent) {
+            logger.debug('Eveniment filtrat - lipsește conținutul necesar');
+            return false;
+          }
+          return true;
+        })
         .forEach(ev => {
           const dateTime = this.parseDateTime(ev.date || ev.dates || '', ev.time, referenceDate);
           const mergeKey = `${dateTime}|${ev.location || ''}`;
@@ -68,26 +109,31 @@ class EventDetectionService {
             if (!existing.title.toLowerCase().includes(ev.title.toLowerCase())) {
               existing.title = `${existing.title} + ${ev.title}`;
             }
+            logger.debug(`Eveniment combinat: ${existing.title}`);
           } else {
-            merged.set(mergeKey, {
-              title: ev.title,
+            const newEvent = {
+              title: ev.title || 'Eveniment',
               dateTime,
               location: ev.location || '',
               eventType: ev.type || 'Eveniment',
               isAllDay: ev.allDay || !ev.time
-            });
+            };
+            merged.set(mergeKey, newEvent);
+            logger.debug(`Eveniment nou adăugat: ${newEvent.title}`);
           }
         });
 
       const events = Array.from(merged.values());
 
+      logger.debug(`Număr evenimente finale procesate: ${events.length}`);
       events.forEach(ev =>
-        console.log(`Event detected: ${ev.title} on ${ev.dateTime}`)
+        logger.debug(`Event detectat: ${ev.title} la data ${ev.dateTime}`)
       );
 
       return { events };
     } catch (error) {
-      console.error('Error in extractEvents:', error);
+      logger.error('Eroare în extractEvents:', error);
+      logger.error('Răspuns AI care a cauzat eroarea:', aiResponse);
       return { events: [] };
     }
   }
@@ -103,21 +149,21 @@ class EventDetectionService {
         date = new Date(y, m - 1, d);
       } else if (dateStr) {
         const lower = dateStr.toLowerCase();
-        if (lower.includes('m\u00e2ine') || lower.includes('maine')) {
+        if (lower.includes('mâine') || lower.includes('maine')) {
           date.setDate(base.getDate() + 1);
-        } else if (lower.includes('poim\u00e2ine')) {
+        } else if (lower.includes('poimâine')) {
           date.setDate(base.getDate() + 2);
         } else {
           const days = {
             'duminica': 0,
             'luni': 1,
             'marti': 2,
-            'mar\u021bi': 2,
+            'marți': 2,
             'miercuri': 3,
             'joi': 4,
             'vineri': 5,
             'sambata': 6,
-            's\u00e2mb\u0103t\u0103': 6
+            'sâmbătă': 6
           };
           for (const [name, idx] of Object.entries(days)) {
             if (lower.includes(name)) {
@@ -139,7 +185,7 @@ class EventDetectionService {
         const phrase = `${timeStr} ${dateStr}`.toLowerCase();
         if (phrase.includes('dimine')) {
           hours = 9; minutes = 0;
-        } else if (phrase.includes('pranz') || phrase.includes('pr\u00e2nz')) {
+        } else if (phrase.includes('pranz') || phrase.includes('prânz')) {
           hours = 13; minutes = 0;
         } else if (phrase.includes('seara') || phrase.includes('diseara')) {
           hours = 20; minutes = 0;
@@ -159,10 +205,10 @@ class EventDetectionService {
       date.setHours(hours, minutes);
       return date.toISOString();
     } catch (error) {
-      console.error('Error parsing date/time:', error);
+      logger.error('Eroare la parsarea datei/orei:', error);
       return base.toISOString();
     }
   }
 }
 
-module.exports = new EventDetectionService(); 
+module.exports = new EventDetectionService();

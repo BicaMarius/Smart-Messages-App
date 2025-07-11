@@ -4,7 +4,7 @@ const { summaryPrompt } = require('../config/summaryPrompt');
 const { eventDetectionPrompt } = require('../config/eventDetectionPrompt');
 const { askPrompt } = require('../config/askPrompt');
 const logger = require('./loggerService');
-const nameAnon = require('./nameAnonymizer');
+const nameAnonymizer = require('./nameAnonymizer');
 
 class OpenRouterService {
   constructor() {
@@ -12,101 +12,182 @@ class OpenRouterService {
     this.apiKey = config.openRouterApi.apiKey;
   }
 
-  generateSummary = (msgs) => this._callOnce(msgs, summaryPrompt);
+  async generateSummary(messages) {
+    logger.ai('Inițializare generare rezumat...');
 
-  async detectEventsWithRetry(messages, maxAttempts = 3) {
-    for (let i = 0; i < maxAttempts; i++) {
-      logger.debug(`detectEvents › încercarea ${i + 1}/${maxAttempts}`);
-      try {
-        const raw = await this._callOnce(messages, eventDetectionPrompt);
+    const response = await this._makeRequest(messages, summaryPrompt);
+    logger.success('Rezumat generat cu succes');
 
-        // acceptăm doar răspunsuri care *încep* cu { pentru a evita “junk text”
-        if (raw.trim().startsWith('{')) {
-          return raw;
-        }
-        logger.warning('detectEvents › răspuns invalid – nu începe cu {');
-      } catch (err) {
-        const code = err.response?.status;
-        if ([429, 502, 503, 504].includes(code) && i < maxAttempts - 1) {
-          const wait = 1000 * (i + 1);                // back-off liniar (1s, 2s…)
-          logger.warning(`OpenRouter ${code} – retry după ${wait}ms`);
-          await new Promise(r => setTimeout(r, wait));
-          continue;
-        }
-        throw err;
-      }
+    return response;
+  }
 
-      if (i < maxAttempts - 1) {
-        const wait = 1000 * (i + 1);
-        await new Promise(r => setTimeout(r, wait));
-      }
-    }
-    throw new Error('Nu s-a putut obține un JSON valid pentru evenimente');
+  async detectEvents(messages) {
+    logger.ai('Inițializare detectare evenimente...');
+
+    const response = await this._makeRequest(messages, eventDetectionPrompt);
+    logger.success('Evenimente detectate cu succes');
+
+    return response;
   }
 
   async askQuestion(messages, question) {
     let selected = messages;
     const limit = config.askMessageLimit;
     if (Number.isFinite(limit) && messages.length > limit) {
-      logger.warning(
-        `Număr mesaje (${messages.length}) depășește limita de ${limit}. Trunchiem.`
+      logger.warn(
+        `Număr mesaje (${messages.length}) depășește limita de ${limit}. Aplicăm trunchiere.`
       );
-      selected = this._truncate(messages, limit);
+      selected = this._truncateMessages(messages, limit);
     }
 
     const context = selected.join('\n');
     const prompt = `${askPrompt}\n\nContext:\n${context}\n\nÎntrebare: ${question}`;
-    return this._callOnce([prompt], askPrompt);
+    return this._makeRequest([prompt], askPrompt);
   }
 
-  async _callOnce(messages, systemPrompt) {
-    logger.debug(`OpenRouter › trimitem ${messages.length} mesaje`);
+  _truncateMessages(messages, limit) {
+    const dateRegex = /^(\d{1,2})\.(\d{1,2})\.(\d{4})/;
+    const groups = [];
+    let currentKey = null;
+    let currentGroup = [];
 
+    for (const msg of messages) {
+      const match = msg.match(dateRegex);
+      const key = match ? `${match[1]}.${match[2]}.${match[3]}` : currentKey || 'unknown';
+      if (key !== currentKey) {
+        if (currentGroup.length) groups.push(currentGroup);
+        currentGroup = [];
+        currentKey = key;
+      }
+      currentGroup.push(msg);
+    }
+    if (currentGroup.length) groups.push(currentGroup);
 
-    const anonMsgs = nameAnon.anonymize(messages);
-    logger.debug('Anonimizare completă');
-    logger.debug(`Mapare: ${JSON.stringify(nameAnon.getMapping())}`);
+    const result = [];
+    for (const group of groups) {
+      if (result.length + group.length > limit) break;
+      result.push(...group);
+    }
+    return result;
+  }
 
-    try {
-      const res = await axios.post(
-        `${this.baseUrl}/chat/completions`,
-        {
-          model: config.openRouterApi.model,
-          temperature: config.openRouterApi.temperature,
-          max_tokens: config.openRouterApi.maxTokens,
-          messages: [
-            { role: 'system', content: systemPrompt },
-            { role: 'user', content: anonMsgs.join('\n') }
-          ]
-        },
-        {
-          headers: {
-            Authorization: `Bearer ${this.apiKey}`,
-            'HTTP-Referer': '*',
-            'Content-Type': 'application/json'
+  async _makeRequest(messages, systemPrompt) {
+    const MAX_RETRIES = 3;
+    let lastError = null;
+
+    for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+      try {
+        logger.debug(`Se face request către OpenRouter API (încercarea ${attempt}/${MAX_RETRIES})...`);
+        logger.debug(`Număr mesaje procesate: ${messages.length}`);
+
+        logger.debug('Anonimizare mesaje...');
+        const anonymizedMessages = nameAnonymizer.anonymize(messages);
+        logger.debug('Mesaje anonimizate');
+        logger.debug(`Mesaje anonimizate:\n${anonymizedMessages.join('\n')}`);
+        logger.debug(`Mapare nume: ${JSON.stringify(nameAnonymizer.getMapping())}`);
+
+        const response = await axios.post(
+          `${this.baseUrl}/chat/completions`,
+          {
+            model: config.openRouterApi.model,
+            messages: [
+              {
+                role: "system",
+                content: systemPrompt
+              },
+              {
+                role: "user",
+                content: anonymizedMessages.join('\n')
+              }
+            ],
+            temperature: config.openRouterApi.temperature || 0.2,
+            max_tokens: 2000, // Adăugăm limite pentru tokens
+            top_p: 0.8,
           },
-          timeout: 30_000
+          {
+            headers: {
+              'Authorization': `Bearer ${this.apiKey}`,
+              'HTTP-Referer': '*',
+              'Content-Type': 'application/json'
+            },
+            timeout: 30000 // 30 secunde timeout
+          }
+        );
+
+        logger.debug('Răspuns primit de la OpenRouter API');
+        logger.debug(`Status răspuns: ${response.status}`);
+
+        const aiMessage = response.data.choices[0].message.content;
+
+        // LOG IMPORTANT: Afișăm răspunsul brut de la AI
+        logger.debug(`Răspuns brut de la AI:\n${aiMessage}`);
+
+        // Verificăm dacă răspunsul este incomplet
+        if (!aiMessage || aiMessage.trim() === '') {
+          throw new Error('Răspuns gol de la AI');
         }
-      );
 
-      logger.debug(`Status răspuns: ${res.status}`);
+        // Pentru detectarea evenimentelor, verificăm dacă JSON-ul este valid
+        if (systemPrompt.includes('evenimente')) {
+          if (!this._isValidEventResponse(aiMessage)) {
+            throw new Error(`Răspuns invalid pentru evenimente: ${aiMessage}`);
+          }
+        }
 
-      const aiRaw = res.data.choices[0].message.content;
-      const clean = nameAnon.deanonymize([aiRaw])[0];
+        const deAnonymized = nameAnonymizer.deanonymize([aiMessage])[0];
+        logger.debug(`Mesaj de-anonimizat:\n${deAnonymized}`);
 
-      logger.debug(`Raw AI message – ${clean.length} caractere`);
-      return clean;
-    } finally {
-      nameAnon.reset();
+        nameAnonymizer.reset();
+
+        return deAnonymized;
+      } catch (error) {
+        lastError = error;
+        logger.error(`Eroare la apelul OpenRouter API (încercarea ${attempt}/${MAX_RETRIES}): ${error.message}`);
+
+        if (attempt === MAX_RETRIES) {
+          break;
+        }
+
+        // Așteptăm înainte de următoarea încercare
+        await new Promise(resolve => setTimeout(resolve, 1000 * attempt));
+      }
     }
+
+    logger.error(`Toate încercările au eșuat. Ultima eroare: ${lastError?.message}`);
+    throw lastError;
   }
 
-  _truncate(msgs, limit) {
-    const res = [];
-    for (let i = msgs.length - 1; i >= 0 && res.length < limit; i--) {
-      res.unshift(msgs[i]);
+  _isValidEventResponse(response) {
+    try {
+      const trimmed = response.trim();
+
+      // Verificăm dacă începe cu { și se termină cu }
+      if (!trimmed.startsWith('{') || !trimmed.endsWith('}')) {
+        logger.warn('Răspunsul nu este un JSON valid (nu începe cu { sau nu se termină cu })');
+        return false;
+      }
+
+      // Încercăm să parsăm JSON-ul
+      const parsed = JSON.parse(trimmed);
+
+      // Verificăm dacă există proprietatea "evenimente"
+      if (!parsed.hasOwnProperty('evenimente')) {
+        logger.warn('Răspunsul nu conține proprietatea "evenimente"');
+        return false;
+      }
+
+      // Verificăm dacă "evenimente" este un array
+      if (!Array.isArray(parsed.evenimente)) {
+        logger.warn('Proprietatea "evenimente" nu este un array');
+        return false;
+      }
+
+      logger.debug('Răspunsul JSON pentru evenimente este valid');
+      return true;
+    } catch (error) {
+      logger.warn(`Eroare la validarea răspunsului JSON: ${error.message}`);
+      return false;
     }
-    return res;
   }
 }
 
