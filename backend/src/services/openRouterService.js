@@ -34,7 +34,7 @@ class OpenRouterService {
     let selected = messages;
     const limit = config.askMessageLimit;
     if (Number.isFinite(limit) && messages.length > limit) {
-      logger.warn(
+      logger.warning(
         `Număr mesaje (${messages.length}) depășește limita de ${limit}. Aplicăm trunchiere.`
       );
       selected = this._truncateMessages(messages, limit);
@@ -163,7 +163,7 @@ class OpenRouterService {
 
       // Verificăm dacă începe cu { și se termină cu }
       if (!trimmed.startsWith('{') || !trimmed.endsWith('}')) {
-        logger.warn('Răspunsul nu este un JSON valid (nu începe cu { sau nu se termină cu })');
+        logger.warning('Răspunsul nu este un JSON valid (nu începe cu { sau nu se termină cu })');
         return false;
       }
 
@@ -172,20 +172,20 @@ class OpenRouterService {
 
       // Verificăm dacă există proprietatea "evenimente"
       if (!parsed.hasOwnProperty('evenimente')) {
-        logger.warn('Răspunsul nu conține proprietatea "evenimente"');
+        logger.warning('Răspunsul nu conține proprietatea "evenimente"');
         return false;
       }
 
       // Verificăm dacă "evenimente" este un array
       if (!Array.isArray(parsed.evenimente)) {
-        logger.warn('Proprietatea "evenimente" nu este un array');
+        logger.warning('Proprietatea "evenimente" nu este un array');
         return false;
       }
 
       logger.debug('Răspunsul JSON pentru evenimente este valid');
       return true;
     } catch (error) {
-      logger.warn(`Eroare la validarea răspunsului JSON: ${error.message}`);
+      logger.warning(`Eroare la validarea răspunsului JSON: ${error.message}`);
       return false;
     }
   }

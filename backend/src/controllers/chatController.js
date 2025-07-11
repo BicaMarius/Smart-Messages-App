@@ -15,7 +15,7 @@ class ChatController {
       logger.success('Rezumat generat cu succes');
       logger.debug(`Rezumat (raw):\n${summaryRaw}`);
 
-      const evRaw = await openRouter.detectEventsWithRetry(messages);
+      const evRaw = await openRouter.detectEvents(messages);
       logger.debug(`detectEvents › răspuns:\n${evRaw}`);
 
       const refDate = eventsSvc.getReferenceDate(messages);

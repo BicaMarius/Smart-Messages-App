@@ -20,7 +20,7 @@ class EventDetectionService {
     try {
       // Verificăm dacă răspunsul este complet
       if (!aiResponse || aiResponse.trim() === '') {
-        logger.warn('Răspuns gol de la AI pentru detectarea evenimentelor');
+        logger.warning('Răspuns gol de la AI pentru detectarea evenimentelor');
         return { events: [] };
       }
 
@@ -28,7 +28,7 @@ class EventDetectionService {
       
       // Verificăm dacă răspunsul pare să fie incomplet
       if (jsonStr.includes('"evenimente":') && !jsonStr.includes(']')) {
-        logger.warn('Răspuns incomplet detectat - pare să se fi întrerupt');
+        logger.warning('Răspuns incomplet detectat - pare să se fi întrerupt');
         return { events: [] };
       }
 
@@ -67,7 +67,7 @@ class EventDetectionService {
         parsed = JSON.parse(jsonStr);
         logger.debug('JSON parsat cu succes');
       } catch (err) {
-        logger.warn('Eroare la parsarea JSON, încercăm repararea...');
+        logger.warning('Eroare la parsarea JSON, încercăm repararea...');
         try {
           const repairedJson = jsonrepair(jsonStr);
           logger.debug(`JSON reparat: ${repairedJson}`);
@@ -82,7 +82,7 @@ class EventDetectionService {
 
       // Verificăm dacă avem proprietatea "evenimente"
       if (!parsed.hasOwnProperty('evenimente')) {
-        logger.warn('Răspunsul nu conține proprietatea "evenimente"');
+        logger.warning('Răspunsul nu conține proprietatea "evenimente"');
         return { events: [] };
       }
 
