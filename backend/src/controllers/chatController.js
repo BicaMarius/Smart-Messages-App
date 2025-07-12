@@ -12,7 +12,6 @@ class ChatController {
       logger.debug(`Ultimul  msg: ${messages[messages.length - 1]}`);
 
       const summaryRaw = await openRouter.generateSummary(messages);
-      logger.success('Rezumat generat cu succes');
       logger.debug(`Rezumat (raw):\n${summaryRaw}`);
 
       const evRaw = await openRouter.detectEvents(messages);
