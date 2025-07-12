@@ -19,7 +19,7 @@ INSTRUCȚIUNI IMPORTANTE:
    - Extrage data și ora exactă/partea din zi(zi,pranz,seara,etc) la care se va intampla evenimentul(acolo unde se poate si sunt specificate).
    - Identifică locația (dacă este specificată).
    - Decide dacă este un eveniment all-day sau nu.
-5. Tratează numele fictive (ex. Alex, Andrei etc.) ca fiind nume proprii și păstrează-le EXACT așa cum apar, fără a le modifica.
+5. Tratează numele anonimizate (ex. utilizator1, utilizator2 etc.) ca fiind nume proprii și păstrează-le EXACT așa cum apar, fără a le modifica.
 
 CRITIC: Răspunsul tău TREBUIE să fie DOAR un JSON valid, complet și bine formatat.
 Nu adăuga NIMIC înainte sau după JSON.
