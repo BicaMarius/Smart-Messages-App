@@ -62,20 +62,26 @@ class StorageService {
     ));
   }
 
-  Map<String, dynamic> _serializeMessages(Map<DateTime, List<String>>? messages) {
+  Map<String, dynamic> _serializeMessages(
+      Map<String, Map<DateTime, List<String>>>? messages) {
     if (messages == null) return {};
-    return messages.map((key, value) => MapEntry(
-      key.toIso8601String(),
-      value,
-    ));
+    return messages.map((person, dateMap) => MapEntry(
+          person,
+          dateMap.map((date, msgs) =>
+              MapEntry(date.toIso8601String(), msgs)),
+        ));
   }
 
-  Map<DateTime, List<String>> _deserializeMessages(Map<String, dynamic>? messages) {
+  Map<String, Map<DateTime, List<String>>> _deserializeMessages(
+      Map<String, dynamic>? messages) {
     if (messages == null) return {};
-    return messages.map((key, value) => MapEntry(
-      DateTime.parse(key),
-      List<String>.from(value),
-    ));
+    return messages.map((person, dateMap) => MapEntry(
+          person,
+          (dateMap as Map<String, dynamic>).map((dateStr, msgs) => MapEntry(
+                DateTime.parse(dateStr),
+                List<String>.from(msgs),
+              )),
+        ));
   }
 
   Future<void> clearPlatformData(String platform) async {

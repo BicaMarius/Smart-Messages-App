@@ -86,7 +86,8 @@ class _HomePageState extends State<HomePage> {
     'Messenger': {}
   };
 
-  final Map<String, Map<DateTime, List<String>>> _conversationMessagesByPlatform = {
+  final Map<String, Map<String, Map<DateTime, List<String>>>>
+      _conversationMessagesByPlatform = {
     'Instagram': {},
     'WhatsApp': {},
     'Messenger': {}
@@ -199,7 +200,9 @@ class _HomePageState extends State<HomePage> {
         setState(() {
           _availablePeopleByPlatform[platform] = List<String>.from(savedConversations['people'] ?? []);
           _personDatesByPlatform[platform] = Map<String, List<DateTime>>.from(savedConversations['dates'] ?? {});
-          _conversationMessagesByPlatform[platform] = Map<DateTime, List<String>>.from(savedConversations['messages'] ?? {});
+          _conversationMessagesByPlatform[platform] =
+              Map<String, Map<DateTime, List<String>>>.from(
+                  savedConversations['messages'] ?? {});
         });
       }
     }
@@ -231,8 +234,9 @@ class _HomePageState extends State<HomePage> {
       if (personName != null) {
         final dates = _personDatesByPlatform[platform]?[personName] ?? [];
         for (final date in dates) {
-          _conversationMessagesByPlatform[platform]?.remove(date);
+          _conversationMessagesByPlatform[platform]?[personName]?.remove(date);
         }
+        _conversationMessagesByPlatform[platform]?.remove(personName);
         _availablePeopleByPlatform[platform]?.remove(personName);
         _personDatesByPlatform[platform]?.remove(personName);
         _selectedPersonByPlatform[platform] = null;
@@ -389,8 +393,10 @@ class _HomePageState extends State<HomePage> {
         }
       }
       
+      final convMap = _conversationMessagesByPlatform[platform]
+          .putIfAbsent(conversationName, () => {});
       for (var entry in messagesByDate.entries) {
-        _conversationMessagesByPlatform[platform]![entry.key] = entry.value;
+        convMap[entry.key] = entry.value;
       }
     });
   }
@@ -428,7 +434,9 @@ class _HomePageState extends State<HomePage> {
         }
       }
       
-      _conversationMessagesByPlatform[platform]![messageDate] = messages;
+      final convMap = _conversationMessagesByPlatform[platform]
+          .putIfAbsent(conversationName, () => {});
+      convMap[messageDate] = messages;
     });
   }
 
@@ -552,7 +560,7 @@ class _HomePageState extends State<HomePage> {
     });
 
     try {
-      final messages = _conversationMessagesByPlatform[platform]?[date] ?? [];
+      final messages = _conversationMessagesByPlatform[platform]?[person]?[date] ?? [];
       if (messages.isEmpty) {
         throw Exception('No messages found for $person on selected date.');
       }
@@ -890,7 +898,7 @@ class _HomePageState extends State<HomePage> {
     final selectedDate = _selectedDateByPlatform[platform];
     if (selectedDate != null) {
       // Dacă avem o dată selectată, returnăm mesajele din acea dată
-      return _conversationMessagesByPlatform[platform]?[selectedDate] ?? [];
+      return _conversationMessagesByPlatform[platform]?[selectedPerson]?[selectedDate] ?? [];
     } else {
       // Dacă nu avem o dată selectată, returnăm toate mesajele pentru acea persoană
       final allMessages = <String>[];
@@ -900,7 +908,7 @@ class _HomePageState extends State<HomePage> {
       if (_askMessageLimit == null) {
         for (final date in sortedDates) {
           allMessages.addAll(
-              _conversationMessagesByPlatform[platform]?[date] ?? []);
+              _conversationMessagesByPlatform[platform]?[selectedPerson]?[date] ?? []);
         }
         _trimmedUntilByPlatform[platform] = null;
         return allMessages;
@@ -911,7 +919,7 @@ class _HomePageState extends State<HomePage> {
       int count = 0;
       final temp = <List<String>>[];
       for (final date in sortedDates.reversed) {
-        final msgs = _conversationMessagesByPlatform[platform]?[date] ?? [];
+        final msgs = _conversationMessagesByPlatform[platform]?[selectedPerson]?[date] ?? [];
         if (count + msgs.length > _askMessageLimit!) {
           break;
         }
