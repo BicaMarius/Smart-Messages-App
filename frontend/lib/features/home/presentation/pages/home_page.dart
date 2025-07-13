@@ -201,6 +201,20 @@ class _HomePageState extends State<HomePage> {
           _personDatesByPlatform[platform] = Map<String, List<DateTime>>.from(savedConversations['dates'] ?? {});
           _conversationMessagesByPlatform[platform] = Map<DateTime, List<String>>.from(savedConversations['messages'] ?? {});
         });
+        
+        // Verify that selected person still exists
+        final selectedPerson = _selectedPersonByPlatform[platform];
+        if (selectedPerson != null && !_availablePeopleByPlatform[platform]!.contains(selectedPerson)) {
+          // Selected person no longer exists, clear selection
+          setState(() {
+            _selectedPersonByPlatform[platform] = null;
+            _selectedDateByPlatform[platform] = null;
+            _conversationSummaryByPlatform[platform] = null;
+            _askChatLogByPlatform[platform] = [];
+            _trimmedUntilByPlatform[platform] = null;
+            _askControllers[platform]?.clear();
+          });
+        }
       }
     }
   }
@@ -235,9 +249,16 @@ class _HomePageState extends State<HomePage> {
         }
         _availablePeopleByPlatform[platform]?.remove(personName);
         _personDatesByPlatform[platform]?.remove(personName);
-        _selectedPersonByPlatform[platform] = null;
-        _selectedDateByPlatform[platform] = null;
-        _conversationSummaryByPlatform[platform] = null;
+        
+        // Clear selected person if it was the one that was deleted
+        if (_selectedPersonByPlatform[platform] == personName) {
+          _selectedPersonByPlatform[platform] = null;
+          _selectedDateByPlatform[platform] = null;
+          _conversationSummaryByPlatform[platform] = null;
+          _askChatLogByPlatform[platform] = [];
+          _trimmedUntilByPlatform[platform] = null;
+          _askControllers[platform]?.clear();
+        }
       }
     });
 
@@ -438,6 +459,20 @@ class _HomePageState extends State<HomePage> {
     
     if (selectedPerson == null) return;
     
+    // Verify that the selected person still exists
+    if (!_availablePeopleByPlatform[platformName]!.contains(selectedPerson)) {
+      // Person was deleted, clear selection
+      setState(() {
+        _selectedPersonByPlatform[platformName] = null;
+        _selectedDateByPlatform[platformName] = null;
+        _conversationSummaryByPlatform[platformName] = null;
+        _askChatLogByPlatform[platformName] = [];
+        _trimmedUntilByPlatform[platformName] = null;
+        _askControllers[platformName]?.clear();
+      });
+      return;
+    }
+    
     final dates = _personDatesByPlatform[platformName]?[selectedPerson] ?? [];
     if (dates.isEmpty) return;
     
@@ -526,6 +561,27 @@ class _HomePageState extends State<HomePage> {
         SnackBar(
           content: const Text('Please select a person first'),
           backgroundColor: platformColor,
+        ),
+      );
+      return;
+    }
+    
+    // Verify that the selected person still exists
+    if (!_availablePeopleByPlatform[platform]!.contains(person)) {
+      // Person was deleted, clear selection
+      setState(() {
+        _selectedPersonByPlatform[platform] = null;
+        _selectedDateByPlatform[platform] = null;
+        _conversationSummaryByPlatform[platform] = null;
+        _askChatLogByPlatform[platform] = [];
+        _trimmedUntilByPlatform[platform] = null;
+        _askControllers[platform]?.clear();
+      });
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Selected person no longer exists. Please select a different person.'),
+          backgroundColor: Colors.red,
         ),
       );
       return;
@@ -791,6 +847,34 @@ class _HomePageState extends State<HomePage> {
         final paths = _uploadedFilePathsByPlatform[platformName]!;
         final alreadyExists = paths.contains(file.path!);
 
+        // If file already exists, we need to remove the old person's data first
+        if (alreadyExists) {
+          final oldFileName = file.path!.split('/').last;
+          final oldPersonName = oldFileName.contains('cu ') 
+            ? oldFileName.split('cu ').last.split('.').first.trim()
+            : null;
+          
+          if (oldPersonName != null) {
+            // Remove old person's data
+            final oldDates = _personDatesByPlatform[platformName]?[oldPersonName] ?? [];
+            for (final date in oldDates) {
+              _conversationMessagesByPlatform[platformName]?.remove(date);
+            }
+            _availablePeopleByPlatform[platformName]?.remove(oldPersonName);
+            _personDatesByPlatform[platformName]?.remove(oldPersonName);
+            
+            // Clear selection if it was the old person
+            if (_selectedPersonByPlatform[platformName] == oldPersonName) {
+              _selectedPersonByPlatform[platformName] = null;
+              _selectedDateByPlatform[platformName] = null;
+              _conversationSummaryByPlatform[platformName] = null;
+              _askChatLogByPlatform[platformName] = [];
+              _trimmedUntilByPlatform[platformName] = null;
+              _askControllers[platformName]?.clear();
+            }
+          }
+        }
+
         setState(() {
           if (!alreadyExists) {
             paths.add(file.path!);
@@ -842,11 +926,22 @@ class _HomePageState extends State<HomePage> {
       controller: _askControllers[platform]!,
       chatLog: _askChatLogByPlatform[platform]!,
       onQuestionSubmitted: (question) async {
+        final selectedPerson = _selectedPersonByPlatform[platform];
+        if (selectedPerson == null) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Please select a person first to ask questions about their conversations'),
+              backgroundColor: Colors.red,
+            ),
+          );
+          return;
+        }
+
         final messages = _getMessagesForAsk(platform);
         if (messages.isEmpty) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('No messages available for ${_selectedPersonByPlatform[platform]}'),
+              content: Text('No messages available for ${selectedPerson}. Please select a different person or date.'),
               backgroundColor: Colors.red,
             ),
           );
@@ -887,51 +982,41 @@ class _HomePageState extends State<HomePage> {
     final selectedPerson = _selectedPersonByPlatform[platform];
     if (selectedPerson == null) return [];
 
-    final selectedDate = _selectedDateByPlatform[platform];
-    if (selectedDate != null) {
-      // Dacă avem o dată selectată, returnăm mesajele din acea dată
-      return _conversationMessagesByPlatform[platform]?[selectedDate] ?? [];
-    } else {
-      // Dacă nu avem o dată selectată, returnăm toate mesajele pentru acea persoană
-      final allMessages = <String>[];
-      final dates = _personDatesByPlatform[platform]?[selectedPerson] ?? [];
-      final sortedDates = List<DateTime>.from(dates)..sort();
+    // Ia doar datele asociate persoanei selectate
+    final dates = _personDatesByPlatform[platform]?[selectedPerson] ?? [];
+    final sortedDates = List<DateTime>.from(dates)..sort();
 
-      if (_askMessageLimit == null) {
-        for (final date in sortedDates) {
-          allMessages.addAll(
-              _conversationMessagesByPlatform[platform]?[date] ?? []);
-        }
-        _trimmedUntilByPlatform[platform] = null;
-        return allMessages;
+    final allMessages = <String>[];
+    if (_askMessageLimit == null) {
+      for (final date in sortedDates) {
+        allMessages.addAll(_conversationMessagesByPlatform[platform]?[date] ?? []);
       }
-
-      // Limitare opțională a numărului de mesaje
-      DateTime? earliestIncluded;
-      int count = 0;
-      final temp = <List<String>>[];
-      for (final date in sortedDates.reversed) {
-        final msgs = _conversationMessagesByPlatform[platform]?[date] ?? [];
-        if (count + msgs.length > _askMessageLimit!) {
-          break;
-        }
-        temp.add(msgs);
-        earliestIncluded = date;
-        count += msgs.length;
-      }
-
-      for (final msgs in temp.reversed) {
-        allMessages.addAll(msgs);
-      }
-
-      if (earliestIncluded != null && earliestIncluded != sortedDates.first) {
-        _trimmedUntilByPlatform[platform] = earliestIncluded;
-      } else {
-        _trimmedUntilByPlatform[platform] = null;
-      }
-
+      _trimmedUntilByPlatform[platform] = null;
       return allMessages;
     }
+
+    // Limitare cu trim la finalul ultimei zile complete
+    DateTime? earliestIncluded;
+    int count = 0;
+    final temp = <List<String>>[];
+    for (final date in sortedDates.reversed) {
+      final msgs = _conversationMessagesByPlatform[platform]?[date] ?? [];
+      if (count + msgs.length > _askMessageLimit!) {
+        earliestIncluded = date;
+        break;
+      }
+      temp.add(msgs);
+      count += msgs.length;
+    }
+    for (final msgs in temp.reversed) {
+      allMessages.addAll(msgs);
+    }
+    if (earliestIncluded != null && earliestIncluded != sortedDates.first) {
+      _trimmedUntilByPlatform[platform] = earliestIncluded;
+    } else {
+      _trimmedUntilByPlatform[platform] = null;
+    }
+    return allMessages;
   }
 
   @override
@@ -1014,16 +1099,37 @@ class _HomePageState extends State<HomePage> {
                               onFileUpload: _openFileManager,
                               onFileDelete: _deleteFile,
                               onPersonSelected: (person) {
-                                setState(() {
-                                  _selectedPersonByPlatform[currentPlatformName] = person;
-                                  _selectedDateByPlatform[currentPlatformName] = null;
-                                  _conversationSummaryByPlatform[currentPlatformName] = null;
-                                  _platformEvents[currentPlatformName] = [];
-                                  _eventAddedToCalendar[currentPlatformName] = {};
-                                  _askChatLogByPlatform[currentPlatformName] = [];
-                                  _trimmedUntilByPlatform[currentPlatformName] = null;
-                                  _askControllers[currentPlatformName]!.clear();
-                                });
+                                // Verify that the person exists in available people
+                                if (_availablePeopleByPlatform[currentPlatformName]?.contains(person) == true) {
+                                  setState(() {
+                                    _selectedPersonByPlatform[currentPlatformName] = person;
+                                    _selectedDateByPlatform[currentPlatformName] = null;
+                                    _conversationSummaryByPlatform[currentPlatformName] = null;
+                                    _platformEvents[currentPlatformName] = [];
+                                    _eventAddedToCalendar[currentPlatformName] = {};
+                                    _askChatLogByPlatform[currentPlatformName] = [];
+                                    _trimmedUntilByPlatform[currentPlatformName] = null;
+                                    _askControllers[currentPlatformName]!.clear();
+                                  });
+                                } else {
+                                  // Person doesn't exist, clear selection
+                                  setState(() {
+                                    _selectedPersonByPlatform[currentPlatformName] = null;
+                                    _selectedDateByPlatform[currentPlatformName] = null;
+                                    _conversationSummaryByPlatform[currentPlatformName] = null;
+                                    _platformEvents[currentPlatformName] = [];
+                                    _eventAddedToCalendar[currentPlatformName] = {};
+                                    _askChatLogByPlatform[currentPlatformName] = [];
+                                    _trimmedUntilByPlatform[currentPlatformName] = null;
+                                    _askControllers[currentPlatformName]!.clear();
+                                  });
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: Text('Selected person no longer exists. Please select a different person.'),
+                                      backgroundColor: Colors.red,
+                                    ),
+                                  );
+                                }
                               },
                               onDateSelected: () => _showDatePicker(currentPlatformName),
                               onGenerateSummary: () => _generateSummary(currentPlatformName),
