@@ -38,7 +38,7 @@ console.log('\n🚀 Starting server...');
 console.log('\n📋 Environment variables:');
 console.log(`   - 🔌 PORT: ${port}`);
 console.log(`   - 🌍 NODE_ENV: ${process.env.NODE_ENV || 'development'}`);
-console.log(`   - 📏 OpenRouter API Key length: ${process.env.OPENROUTER_API_KEY?.length || 0}`);
+console.log(`   - 📏 Gemini API Key length (din OPENROUTER_API_KEY): ${process.env.OPENROUTER_API_KEY?.length || 0}`);
 
 if (!isProduction) {
     console.log('\n🌐 Network Interfaces:');

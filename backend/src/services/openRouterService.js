@@ -1,4 +1,4 @@
-const axios = require('axios');
+const { GoogleGenAI } = require('@google/genai');
 const config = require('../config/config');
 const { summaryPrompt } = require('../config/summaryPrompt');
 const { eventDetectionPrompt } = require('../config/eventDetectionPrompt');
@@ -8,8 +8,9 @@ const nameAnonymizer = require('./nameAnonymizer');
 
 class OpenRouterService {
   constructor() {
-    this.baseUrl = config.openRouterApi.baseUrl;
-    this.apiKey = config.openRouterApi.apiKey;
+    this.ai = new GoogleGenAI({
+      apiKey: config.aiApiKey
+    });
   }
 
   async generateSummary(messages) {
@@ -77,7 +78,7 @@ class OpenRouterService {
 
     for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
       try {
-        logger.debug(`Se face request către OpenRouter API (încercarea ${attempt}/${MAX_RETRIES})...`);
+        logger.debug(`Se face request către Gemini API prin SDK-ul oficial (încercarea ${attempt}/${MAX_RETRIES})...`);
         logger.debug(`Număr mesaje procesate: ${messages.length}`);
 
         logger.debug('Anonimizare mesaje...');
@@ -86,48 +87,59 @@ class OpenRouterService {
         logger.debug(`Mesaje anonimizate:\n${anonymizedMessages.join('\n')}`);
         logger.debug(`Mapare nume: ${JSON.stringify(nameAnonymizer.getMapping())}`);
 
+        const prompt = anonymizedMessages.join('\n');
+        const response = await this.ai.models.generateContent({
+          model: config.aiProvider.model,
+          contents: prompt,
+          config: {
+            systemInstruction: systemPrompt,
+            temperature: config.aiProvider.temperature || 0.2,
+            maxOutputTokens: config.aiProvider.maxTokens || 2000,
+            topP: 0.8
+          }
+        });
+
+        /*
+        Fallback vechi OpenRouter - îl păstrăm comentat pentru cazul în care revii la providerul anterior.
+        Necesită din nou axios + endpoint-ul OpenRouter.
         const response = await axios.post(
-          `${this.baseUrl}/chat/completions`,
+          `${config.openRouterApi.baseUrl}/chat/completions`,
           {
             model: config.openRouterApi.model,
             messages: [
               {
-                role: "system",
+                role: 'system',
                 content: systemPrompt
               },
               {
-                role: "user",
-                content: anonymizedMessages.join('\n')
+                role: 'user',
+                content: prompt
               }
             ],
             temperature: config.openRouterApi.temperature || 0.2,
-            max_tokens: 2000, // Adăugăm limite pentru tokens
+            max_tokens: 2000,
             top_p: 0.8,
           },
           {
             headers: {
-              'Authorization': `Bearer ${this.apiKey}`,
+              'Authorization': `Bearer ${config.openRouterApi.apiKey}`,
               'HTTP-Referer': '*',
               'Content-Type': 'application/json'
             },
-            timeout: 30000 // 30 secunde timeout
+            timeout: 30000
           }
         );
+        */
 
-        logger.debug('Răspuns primit de la OpenRouter API');
-        logger.debug(`Status răspuns: ${response.status}`);
+        logger.debug('Răspuns primit de la Gemini API prin SDK');
 
-        const aiMessage = response.data.choices[0].message.content;
-
-        // LOG IMPORTANT: Afișăm răspunsul brut de la AI
+        const aiMessage = this._extractTextFromGeminiResponse(response);
         logger.debug(`Răspuns brut de la AI:\n${aiMessage}`);
 
-        // Verificăm dacă răspunsul este incomplet
         if (!aiMessage || aiMessage.trim() === '') {
           throw new Error('Răspuns gol de la AI');
         }
 
-        // Pentru detectarea evenimentelor, verificăm dacă JSON-ul este valid
         if (systemPrompt.includes('evenimente')) {
           if (!this._isValidEventResponse(aiMessage)) {
             throw new Error(`Răspuns invalid pentru evenimente: ${aiMessage}`);
@@ -142,13 +154,12 @@ class OpenRouterService {
         return deAnonymized;
       } catch (error) {
         lastError = error;
-        logger.error(`Eroare la apelul OpenRouter API (încercarea ${attempt}/${MAX_RETRIES}): ${error.message}`);
+        logger.error(`Eroare la apelul Gemini API prin SDK (încercarea ${attempt}/${MAX_RETRIES}): ${error.message}`);
 
         if (attempt === MAX_RETRIES) {
           break;
         }
 
-        // Așteptăm înainte de următoarea încercare
         await new Promise(resolve => setTimeout(resolve, 1000 * attempt));
       }
     }
@@ -157,26 +168,32 @@ class OpenRouterService {
     throw lastError;
   }
 
+  _extractTextFromGeminiResponse(response) {
+    const text = response?.text?.trim();
+
+    if (!text) {
+      throw new Error('Nu s-a putut extrage textul din răspunsul Gemini');
+    }
+
+    return text;
+  }
+
   _isValidEventResponse(response) {
     try {
       const trimmed = response.trim();
 
-      // Verificăm dacă începe cu { și se termină cu }
       if (!trimmed.startsWith('{') || !trimmed.endsWith('}')) {
         logger.warning('Răspunsul nu este un JSON valid (nu începe cu { sau nu se termină cu })');
         return false;
       }
 
-      // Încercăm să parsăm JSON-ul
       const parsed = JSON.parse(trimmed);
 
-      // Verificăm dacă există proprietatea "evenimente"
-      if (!parsed.hasOwnProperty('evenimente')) {
+      if (!Object.prototype.hasOwnProperty.call(parsed, 'evenimente')) {
         logger.warning('Răspunsul nu conține proprietatea "evenimente"');
         return false;
       }
 
-      // Verificăm dacă "evenimente" este un array
       if (!Array.isArray(parsed.evenimente)) {
         logger.warning('Proprietatea "evenimente" nu este un array');
         return false;
