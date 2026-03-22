@@ -67,6 +67,14 @@ class OpenRouterService {
     return result;
   }
 
+  // Elimină markdown code blocks dacă modelul le adaugă (ex. ```json ... ```)
+  _stripMarkdown(text) {
+    return text
+      .replace(/^```(?:json)?\s*/i, '')
+      .replace(/\s*```$/, '')
+      .trim();
+  }
+
   async _makeRequest(messages, systemPrompt) {
     const MAX_RETRIES = 3;
     let lastError = null;
@@ -112,7 +120,7 @@ class OpenRouterService {
 
         logger.debug(`Status răspuns: ${response.status}`);
 
-        const aiMessage = response.data?.candidates?.[0]?.content?.parts
+        let aiMessage = response.data?.candidates?.[0]?.content?.parts
           ?.map(p => p?.text)
           .filter(Boolean)
           .join('\n')
@@ -121,6 +129,9 @@ class OpenRouterService {
         if (!aiMessage) {
           throw new Error('Răspuns gol de la Gemini');
         }
+
+        // Eliminăm markdown code blocks dacă există
+        aiMessage = this._stripMarkdown(aiMessage);
 
         logger.debug(`Răspuns brut de la AI:\n${aiMessage}`);
 
@@ -143,19 +154,16 @@ class OpenRouterService {
           logger.error(`HTTP ${error.response.status} de la Gemini API`);
           logger.error(`Detalii eroare: ${JSON.stringify(error.response.data)}`);
 
-          // 401/403 = cheie greșită, nu reîncercăm
           if (error.response.status === 401 || error.response.status === 403) {
             logger.error('Eroare de autentificare - verifică GEMINI_API_KEY în Render');
             break;
           }
 
-          // 429 = rate limit, nu reîncercăm
           if (error.response.status === 429) {
             logger.error('Rate limit atins (429) - oprire imediată');
             break;
           }
 
-          // 400 = request invalid
           if (error.response.status === 400) {
             logger.error('Request invalid (400) - oprire imediată');
             break;
