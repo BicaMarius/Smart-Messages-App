@@ -2,13 +2,12 @@ require('dotenv').config();
 
 module.exports = {
     port: process.env.PORT || 3000,
-    aiApiKey: process.env.OPENROUTER_API_KEY,
-    openRouterApi: {
-        baseUrl: 'https://openrouter.ai/api/v1',
-        apiKey: process.env.OPENROUTER_API_KEY,
-        model: "meta-llama/llama-3.3-70b-instruct:free",
+    aiProvider: {
+        baseUrl: 'https://generativelanguage.googleapis.com/v1beta',
+        apiKey: process.env.GEMINI_API_KEY,
+        model: 'gemini-2.5-flash-lite',
         temperature: 0.3,
-        maxTokens: 1000
+        maxTokens: 2000
     },
     askMessageLimit: process.env.ASK_MESSAGE_LIMIT
         ? parseInt(process.env.ASK_MESSAGE_LIMIT, 10)
@@ -23,7 +22,7 @@ module.exports = {
         methods: ['GET', 'POST', 'OPTIONS'],
         allowedHeaders: ['Content-Type', 'Authorization', 'Accept', 'Origin', 'X-Requested-With'],
         credentials: true,
-        maxAge: 86400, // Cache preflight requests for 24 hours
+        maxAge: 86400,
         preflightContinue: false,
         optionsSuccessStatus: 204
     }

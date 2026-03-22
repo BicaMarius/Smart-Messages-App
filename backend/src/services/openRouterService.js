@@ -8,25 +8,21 @@ const nameAnonymizer = require('./nameAnonymizer');
 
 class OpenRouterService {
   constructor() {
-    this.baseUrl = config.openRouterApi.baseUrl;
-    this.apiKey = config.openRouterApi.apiKey;
+    this.baseUrl = config.aiProvider.baseUrl;
+    this.apiKey = config.aiProvider.apiKey;
   }
 
   async generateSummary(messages) {
     logger.ai('Inițializare generare rezumat...');
-
     const response = await this._makeRequest(messages, summaryPrompt);
     logger.success('Rezumat generat cu succes');
-
     return response;
   }
 
   async detectEvents(messages) {
     logger.ai('Inițializare detectare evenimente...');
-
     const response = await this._makeRequest(messages, eventDetectionPrompt);
     logger.success('Evenimente detectate cu succes');
-
     return response;
   }
 
@@ -77,57 +73,57 @@ class OpenRouterService {
 
     for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
       try {
-        logger.debug(`Se face request către OpenRouter API (încercarea ${attempt}/${MAX_RETRIES})...`);
+        logger.debug(`Se face request către Gemini API (încercarea ${attempt}/${MAX_RETRIES})...`);
+        logger.debug(`Model: ${config.aiProvider.model}`);
         logger.debug(`Număr mesaje procesate: ${messages.length}`);
 
         logger.debug('Anonimizare mesaje...');
         const anonymizedMessages = nameAnonymizer.anonymize(messages);
-        logger.debug('Mesaje anonimizate');
-        logger.debug(`Mesaje anonimizate:\n${anonymizedMessages.join('\n')}`);
         logger.debug(`Mapare nume: ${JSON.stringify(nameAnonymizer.getMapping())}`);
 
-        const response = await axios.post(
-          `${this.baseUrl}/chat/completions`,
-          {
-            model: config.openRouterApi.model,
-            messages: [
-              {
-                role: "system",
-                content: systemPrompt
-              },
-              {
-                role: "user",
-                content: anonymizedMessages.join('\n')
-              }
-            ],
-            temperature: config.openRouterApi.temperature || 0.2,
-            max_tokens: 2000, // Adăugăm limite pentru tokens
-            top_p: 0.8,
+        const requestPayload = {
+          systemInstruction: {
+            parts: [{ text: systemPrompt }]
           },
+          contents: [
+            {
+              role: 'user',
+              parts: [{ text: anonymizedMessages.join('\n') }]
+            }
+          ],
+          generationConfig: {
+            temperature: config.aiProvider.temperature || 0.3,
+            maxOutputTokens: config.aiProvider.maxTokens || 2000,
+            topP: 0.8
+          }
+        };
+
+        const response = await axios.post(
+          `${this.baseUrl}/models/${config.aiProvider.model}:generateContent`,
+          requestPayload,
           {
             headers: {
-              'Authorization': `Bearer ${this.apiKey}`,
-              'HTTP-Referer': '*',
+              'x-goog-api-key': this.apiKey,
               'Content-Type': 'application/json'
             },
-            timeout: 30000 // 30 secunde timeout
+            timeout: 30000
           }
         );
 
-        logger.debug('Răspuns primit de la OpenRouter API');
         logger.debug(`Status răspuns: ${response.status}`);
 
-        const aiMessage = response.data.choices[0].message.content;
+        const aiMessage = response.data?.candidates?.[0]?.content?.parts
+          ?.map(p => p?.text)
+          .filter(Boolean)
+          .join('\n')
+          .trim();
 
-        // LOG IMPORTANT: Afișăm răspunsul brut de la AI
-        logger.debug(`Răspuns brut de la AI:\n${aiMessage}`);
-
-        // Verificăm dacă răspunsul este incomplet
-        if (!aiMessage || aiMessage.trim() === '') {
-          throw new Error('Răspuns gol de la AI');
+        if (!aiMessage) {
+          throw new Error('Răspuns gol de la Gemini');
         }
 
-        // Pentru detectarea evenimentelor, verificăm dacă JSON-ul este valid
+        logger.debug(`Răspuns brut de la AI:\n${aiMessage}`);
+
         if (systemPrompt.includes('evenimente')) {
           if (!this._isValidEventResponse(aiMessage)) {
             throw new Error(`Răspuns invalid pentru evenimente: ${aiMessage}`);
@@ -142,13 +138,34 @@ class OpenRouterService {
         return deAnonymized;
       } catch (error) {
         lastError = error;
-        logger.error(`Eroare la apelul OpenRouter API (încercarea ${attempt}/${MAX_RETRIES}): ${error.message}`);
 
-        if (attempt === MAX_RETRIES) {
-          break;
+        if (error.response) {
+          logger.error(`HTTP ${error.response.status} de la Gemini API`);
+          logger.error(`Detalii eroare: ${JSON.stringify(error.response.data)}`);
+
+          // 401/403 = cheie greșită, nu reîncercăm
+          if (error.response.status === 401 || error.response.status === 403) {
+            logger.error('Eroare de autentificare - verifică GEMINI_API_KEY în Render');
+            break;
+          }
+
+          // 429 = rate limit, nu reîncercăm
+          if (error.response.status === 429) {
+            logger.error('Rate limit atins (429) - oprire imediată');
+            break;
+          }
+
+          // 400 = request invalid
+          if (error.response.status === 400) {
+            logger.error('Request invalid (400) - oprire imediată');
+            break;
+          }
+        } else {
+          logger.error(`Eroare (încercarea ${attempt}/${MAX_RETRIES}): ${error.message}`);
         }
 
-        // Așteptăm înainte de următoarea încercare
+        if (attempt === MAX_RETRIES) break;
+
         await new Promise(resolve => setTimeout(resolve, 1000 * attempt));
       }
     }
@@ -161,22 +178,18 @@ class OpenRouterService {
     try {
       const trimmed = response.trim();
 
-      // Verificăm dacă începe cu { și se termină cu }
       if (!trimmed.startsWith('{') || !trimmed.endsWith('}')) {
-        logger.warning('Răspunsul nu este un JSON valid (nu începe cu { sau nu se termină cu })');
+        logger.warning('Răspunsul nu este un JSON valid');
         return false;
       }
 
-      // Încercăm să parsăm JSON-ul
       const parsed = JSON.parse(trimmed);
 
-      // Verificăm dacă există proprietatea "evenimente"
       if (!parsed.hasOwnProperty('evenimente')) {
         logger.warning('Răspunsul nu conține proprietatea "evenimente"');
         return false;
       }
 
-      // Verificăm dacă "evenimente" este un array
       if (!Array.isArray(parsed.evenimente)) {
         logger.warning('Proprietatea "evenimente" nu este un array');
         return false;
